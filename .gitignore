@@ -6,3 +6,4 @@ CLAUDE.md
 *.tsbuildinfo
 doc/XLS_FORMAT.md
 reports/
+evaluate.bat
