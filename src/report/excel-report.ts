@@ -1,6 +1,10 @@
 import ExcelJS from "exceljs";
 import path from "path";
-import type { EvaluationReport, CoinWithPrices } from "../types/index.js";
+import type { EvaluationReport, CoinWithPrices, Grade } from "../types/index.js";
+
+const GRADE_TO_QA: Record<Grade, number> = {
+  g: 1, vg: 2, f: 3, vf: 4, xf: 5, au: 6, unc: 7,
+};
 
 const GREY = "FF9E9E9E";
 const BLUE = "FF2196F3";
@@ -88,8 +92,11 @@ function writeCoinRows(
     r.getCell(8).value = { formula: `IFERROR(F${row}*VLOOKUP(G${row},$O$${convStart}:$P$${convEnd},2,FALSE),"")` } as any;
     r.getCell(8).numFmt = "#,##0.00";
 
-    // I: Prix VF
-    r.getCell(9).value = c.priceVF;
+    // I: Prix — formule CHOOSE liée au QA
+    const prices = c.allPrices.map(p => p.toFixed(3)).join(",");
+    r.getCell(9).value = {
+      formula: `IFERROR(IF(L${row}="",0,CHOOSE(L${row},${prices})),0)`,
+    } as any;
     r.getCell(9).numFmt = "#,##0.00";
 
     // J: Tirage
@@ -101,7 +108,8 @@ function writeCoinRows(
       formula: `IF(J${row}="","",IF(J${row}>100000000,1,IF(J${row}>10000000,3,IF(J${row}>1000000,5,IF(J${row}>100000,7,9)))))`,
     } as any;
 
-    // L: QA — dropdown 1-7, vide par défaut (l'utilisateur évalue)
+    // L: QA — dropdown 1-7, pré-rempli selon le grade du prix le plus bas
+    r.getCell(12).value = c.priceGrade ? GRADE_TO_QA[c.priceGrade] : null;
     r.getCell(12).dataValidation = {
       type: "list",
       allowBlank: true,

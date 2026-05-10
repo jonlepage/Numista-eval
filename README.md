@@ -76,10 +76,10 @@ The Excel report contains:
 | V.Nom.       | Face value (nominal)                                 |
 | Dev.         | Currency code of the coin                            |
 | V.Nom (conv) | Face value converted to your currency                |
-| Prix         | Estimated price by Numista (VF grade)                |
+| Prix         | Estimated price — adjusts based on selected QA grade |
 | Tirage       | Mintage (number of coins produced)                   |
 | Rareté       | Rarity score (1 = very common, 9 = rare)             |
-| QA           | Quality — to be filled in by you (1 to 7)            |
+| QA           | Quality — pre-filled with the lowest available grade, editable (1 to 7) |
 
 **On the right** — A currency conversion table with clickable Google links to verify rates, and a grade reference table.
 
@@ -99,7 +99,7 @@ The QA column offers a dropdown from 1 to 7. It is up to each user to assess the
 | 6     | SPL | AU  | Almost mint                           |
 | 7     | FDC | UNC | Perfect, never circulated             |
 
-> The displayed price is based on the VF grade (TTB = score 4). If coins are in better or worse condition, the actual price may differ.
+> The price adjusts automatically when you change the QA grade in the Excel file. The grade is pre-filled with the lowest grade for which a price is available.
 
 **"Graphique" tab** — A chart visually comparing both sides of the swap.
 

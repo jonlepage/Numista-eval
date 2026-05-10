@@ -76,10 +76,10 @@ Le rapport Excel contient :
 | V.Nom.       | Valeur faciale (nominale)                            |
 | Dev.         | Code devise de la pièce                              |
 | V.Nom (conv) | Valeur nominale convertie dans votre devise          |
-| Prix         | Prix estimé par Numista (grade VF)                   |
+| Prix         | Prix estimé — s'ajuste selon le grade QA sélectionné |
 | Tirage       | Nombre d'exemplaires produits                        |
 | Rareté       | Score de rareté (1 = très commun, 9 = rare)          |
-| QA           | Qualité — à remplir selon votre appréciation (1 à 7) |
+| QA           | Qualité — pré-rempli selon le grade le plus bas disponible, modifiable (1 à 7) |
 
 **À droite** — Un tableau de conversion des devises avec des liens Google pour vérifier les taux, ainsi qu'un tableau de référence des grades de qualité.
 
@@ -99,7 +99,7 @@ La colonne QA propose un menu déroulant de 1 à 7. Il revient à chaque utilisa
 | 6     | SPL | AU  | Quasi neuve                     |
 | 7     | FDC | UNC | Parfaite, jamais circulée       |
 
-> Le prix affiché est basé sur le grade VF (TTB = score 4). Si les pièces sont en meilleur ou moins bon état, le prix réel peut varier.
+> Le prix s'ajuste automatiquement lorsque vous modifiez le grade QA dans le fichier Excel. Le grade est pré-rempli au grade le plus bas pour lequel un prix est disponible.
 
 **Onglet « Graphique »** — Un graphique comparant visuellement les deux côtés de l'échange.
 

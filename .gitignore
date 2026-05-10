@@ -7,3 +7,5 @@ CLAUDE.md
 doc/XLS_FORMAT.md
 reports/
 evaluate.bat
+src/report/excel-report.ts
+src/report/terminal-report.ts

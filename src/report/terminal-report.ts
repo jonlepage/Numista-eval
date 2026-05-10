@@ -4,7 +4,13 @@ import type { EvaluationReport, CoinWithPrices } from "../types/index.js";
 
 function coinRow(c: CoinWithPrices, currency: string): string[] {
   const typeId = c.raw.typeId ? `N# ${c.raw.typeId}` : "?";
-  const price = c.priceVF != null ? `${c.priceVF.toFixed(2)} ${currency}` : chalk.yellow("—");
+  let price: string;
+  if (c.price != null) {
+    const gradeTag = c.priceGrade && c.priceGrade !== "vf" ? ` (${c.priceGrade.toUpperCase()})` : "";
+    price = `${c.price.toFixed(2)} ${currency}${gradeTag}`;
+  } else {
+    price = chalk.yellow("—");
+  }
   const mintage = c.mintage != null ? c.mintage.toLocaleString("fr-CA") : "";
   const rarity = c.rarityScore != null ? `${c.rarityScore}/10` : "";
 

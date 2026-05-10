@@ -52,10 +52,14 @@ export interface NumistaType {
 
 export type Grade = "g" | "vg" | "f" | "vf" | "xf" | "au" | "unc";
 
+export const GRADE_ORDER: Grade[] = ["g", "vg", "f", "vf", "xf", "au", "unc"];
+
 export interface CoinWithPrices {
   raw: RawCoin;
   issue: NumistaIssue | null;
-  priceVF: number | null;
+  price: number | null;
+  priceGrade: Grade | null;
+  allPrices: number[];
   faceValue: number | null;
   faceValueText: string | null;
   currencyCode: string | null;
