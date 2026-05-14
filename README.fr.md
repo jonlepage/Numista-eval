@@ -1,122 +1,100 @@
 # numista-eval
 
-Outil de télémétrie et de statistiques pour évaluer l'équité d'un échange de pièces sur [Numista](https://www.numista.com).
+Évaluer l'équité d'un échange de pièces sur [Numista](https://www.numista.com).
 
 **🇬🇧 [English version](README.md)**
 
-<a href="pre1.jpg"><img src="pre1.jpg" width="150" /></a> <a href="prev2.jpg"><img src="prev2.jpg" width="150" /></a>
+## Ce que ça fait
 
-## Pourquoi cet outil
+Vous exportez un fichier d'échange depuis Numista, vous lancez l'outil, et vous obtenez un **rapport Excel** avec les prix estimés, les scores de rareté et un verdict d'équité. Le rapport est entièrement modifiable — ajustez les grades, excluez des pièces, partagez-le avec votre partenaire d'échange.
 
-Lors d'un échange entre collègues collectionneurs, il est souvent difficile de savoir si la transaction est équilibrée. `numista-eval` offre un **recul statistique** en croisant les prix marchands, les valeurs nominales, la rareté et la qualité de chaque pièce.
+## Installation
 
-Les résultats ne sont pas à prendre à la lettre — Numista ne dispose pas toujours de toutes les métadonnées, ce qui peut altérer certaines estimations. C'est pourquoi le fichier Excel généré est **entièrement éditable** : il est possible d'ajuster les prix, les grades et les taux de conversion selon votre propre appréciation si elle est manquante ou altérée. Le fichier peut également être partagé avec votre partenaire d'échange pour en discuter et procéder à plusieurs itérations, jusqu'à trouver un équilibre qui satisfait les deux parties.
+1. Installer [Node.js](https://nodejs.org) (version 20+)
+2. Obtenir une clé API Numista gratuite → [numista.com/api](https://en.numista.com/api/doc/index.php)
+   > Mon compte → API → Créer une application → copier la clé
 
-## Ce que ça produit
+## Comment utiliser
 
-- Le **prix estimé** de chaque pièce (en CAD, EUR ou autre devise)
-- Un **score de rareté** basé sur le tirage
-- Un **bilan comparatif** avec verdict : ÉQUITABLE, ACCEPTABLE ou DÉSÉQUILIBRÉ
-- Un **fichier Excel** avec formules dynamiques, modifiable pour affiner votre évaluation
-- Un **graphique** de comparaison visuelle
+**Étape 1** — Exporter votre échange depuis Numista :
+- Ouvrir la page de votre échange (ex : `https://fr.numista.com/echanges/echange.php?id=926052`)
+- Cliquer sur **Exporter** → enregistrer le fichier `.xls`
 
-## Prérequis
-
-- [Node.js](https://nodejs.org) version 20 ou plus récent
-- Une **clé API Numista** (gratuite) → [Obtenir votre clé](https://en.numista.com/api/doc.php)
-
-> **Comment obtenir la clé :** se connecter sur Numista → Mon compte → API → Créer une application. Vous recevrez une clé (une longue chaîne de lettres et chiffres).
-
-## Utilisation
-
-### La commande
-
+**Étape 2** — Lancer l'évaluation :
 ```bash
-npx numista-eval "chemin/vers/fichier.xls" VOTRE_CLE_API
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API CAD --lang fr
 ```
 
-Le rapport s'affiche dans le terminal et un fichier Excel est généré dans le dossier `reports/`.
+> Utilisez toujours le **chemin complet** vers le fichier XLS, pas un chemin relatif.
 
-### Comment obtenir le fichier d'échange
-
-1. Se rendre sur la page de votre échange sur Numista (exemple : `https://fr.numista.com/echanges/echange.php?id=926052`)
-2. Cliquer sur **Exporter** (bouton en haut de la page d'échange)
-3. Enregistrer le fichier `.xls` sur votre ordinateur
+**Étape 3** — Ouvrir le fichier Excel dans le dossier `reports/` créé à côté de votre XLS.
 
 ### Exemples
 
 ```bash
-# Évaluation en dollars canadiens (par défaut)
-npx numista-eval "echange_bob_alice.xls" abc123def456...
+# Rapport en français, dollars canadiens
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API CAD --lang fr
 
-# Évaluation en euros
-npx numista-eval "echange_bob_alice.xls" abc123def456... EUR
+# Rapport en anglais, dollars US
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API USD --lang en
 
-# Si votre clé est définie dans un fichier .env
-npx numista-eval "echange_bob_alice.xls"
+# Rapport en allemand, euros
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API EUR --lang de
+
+# Rapport en chinois, yuan
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API CNY --lang zh
+
+# Rapport en espagnol, pesos mexicains
+npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API MXN --lang es
 ```
 
-### Devises supportées
+**Langues** ([ISO 639-1](https://fr.wikipedia.org/wiki/Liste_des_codes_ISO_639-1)) **:** `fr` `en` `de` `es` `pt` `it` `nl` `el` `ru` `zh` `ja`
 
-CAD (défaut), EUR, USD, GBP, et toute devise [ISO 4217](https://fr.wikipedia.org/wiki/ISO_4217). Les prix sont calculés par Numista dans la devise choisie.
+**Devises :** tout code [ISO 4217](https://fr.wikipedia.org/wiki/ISO_4217) — CAD, EUR, USD, GBP, CNY, JPY…
 
-## Le fichier Excel
+> **Astuce :** créez un fichier `.env` avec `NUMISTA_API_KEY=VOTRE_CLE_API` pour éviter de taper votre clé à chaque fois. Sous Windows, voir `evaluate.example.bat` pour un modèle prêt à l'emploi.
 
-Le rapport Excel contient :
+## Le rapport Excel
 
-**Onglet « Évaluation »** — Le tableau principal :
-
-| Colonne      | Contenu                                              |
-| ------------ | ---------------------------------------------------- |
-| #            | Numéro Numista (lien cliquable vers la fiche)        |
-| Nom          | Nom de la pièce                                      |
-| Pays         | Pays émetteur                                        |
-| Année        | Année de frappe                                      |
-| A.           | Lettre d'atelier                                     |
-| V.Nom.       | Valeur faciale (nominale)                            |
-| Dev.         | Code devise de la pièce                              |
-| V.Nom (conv) | Valeur nominale convertie dans votre devise          |
-| Prix         | Prix estimé — s'ajuste selon le grade QA sélectionné |
-| Tirage       | Nombre d'exemplaires produits                        |
-| Rareté       | Score de rareté (1 = très commun, 9 = rare)          |
-| QA           | Qualité — pré-rempli selon le grade le plus bas disponible, modifiable (1 à 7) |
-| Réf.         | Référence catalogue (ex : KM# 33, KM# 1169a)        |
-
-**À droite** — Un tableau de conversion des devises avec des liens Google pour vérifier les taux, ainsi qu'un tableau de référence des grades de qualité.
-
-> **Exclure une pièce du calcul :** masquez la ligne dans Excel (sélectionner → clic droit → Masquer). Les totaux et le bilan se recalculent automatiquement grâce aux formules SUBTOTAL.
-
-**En bas** — Le bilan comparatif : prix, valeur nominale, rareté et qualité moyennes avec les écarts en pourcentage.
-
-### Qualité (QA)
-
-La colonne QA propose un menu déroulant de 1 à 7. Il revient à chaque utilisateur d'évaluer l'état de conservation de ses pièces :
-
-| Score | FR  | EN  | Description                     |
-| ----- | --- | --- | ------------------------------- |
-| 1     | AB  | AG  | Très usée, à peine identifiable |
-| 2     | B   | G   | Usée mais identifiable          |
-| 3     | TB  | F   | Usure visible, détails clairs   |
-| 4     | TTB | VF  | Légère usure, belle apparence   |
-| 5     | SUP | XF  | Usure minimale                  |
-| 6     | SPL | AU  | Quasi neuve                     |
-| 7     | FDC | UNC | Parfaite, jamais circulée       |
-
-> Le prix s'ajuste automatiquement lorsque vous modifiez le grade QA dans le fichier Excel. Le grade est pré-rempli au grade le plus bas pour lequel un prix est disponible.
-
-**Onglet « Graphique »** — Un graphique comparant visuellement les deux côtés de l'échange.
+- Le **prix** s'ajuste automatiquement quand vous changez le grade **QA** (menu déroulant 1–7)
+- La colonne **✔** permet d'inclure (✓) ou exclure (✗) chaque pièce — les totaux se recalculent instantanément
+- Les valeurs ✓/✗ par défaut sont lues depuis le fichier d'échange Numista (vos propositions vs. celles de l'autre)
+- Les **taux de conversion** sont récupérés en direct avec des liens Google pour vérification
+- Le **verdict** en bas : ÉQUITABLE, ACCEPTABLE ou DÉSÉQUILIBRÉ (coloré)
 
 ## Conseils
 
-- **Ne vous fiez pas uniquement au prix.** Les estimations de Numista sont basées sur les évaluations des membres, dont beaucoup sont des commerçants. Ces prix reflètent une valeur marchande souvent exagérée et ne tiennent pas compte de la valeur sentimentale ou de l'intérêt personnel que peut représenter une pièce. Pour certains, la numismatique est un commerce ; pour d'autres, c'est une passion — les deux perspectives sont légitimes, mais elles n'accordent pas la même importance au prix.
+- **Les prix sont des estimations.** Ils reflètent la valeur marchande des revendeurs, pas la valeur sentimentale ou de collectionneur.
+- **Les pièces commémoratives** sont généralement plus difficiles à trouver que leur prix ne le suggère — ajustez en conséquence.
+- **Vérifiez les taux de conversion** pour les devises inhabituelles grâce aux liens dans le fichier Excel.
 
-- **Les pièces commémoratives méritent une attention particulière.** Même si leur prix estimé est similaire à celui d'une pièce courante, elles sont généralement beaucoup plus rares à obtenir — on en trouve typiquement 0 à 5 dans un rouleau de 50 pièces. Cette rareté pratique n'est pas toujours reflétée dans le prix. Il est recommandé d'ajuster manuellement la colonne QA ou le prix pour ces pièces.
+## Bonus : évaluation en un clic (Windows)
 
-- **Vérifiez les taux de conversion.** Certaines devises retournées par l'API peuvent sembler inhabituelles (devises historiques, monnaies locales). Le tableau de conversion dans le fichier Excel fournit un lien cliquable pour chaque devise, permettant de vérifier le taux actuel sur Google et de confirmer l'état du marché.
+Fatigué de taper la commande à chaque fois ? Un fichier `.bat` permet de sauvegarder vos paramètres une seule fois et de les réutiliser — il suffit de double-cliquer et coller le chemin du fichier.
+
+1. Copier [`evaluate.example.bat`](evaluate.example.bat) et renommer la copie en `evaluate.bat`
+2. Ouvrir `evaluate.bat` dans un éditeur de texte (clic droit → Modifier)
+3. Remplacer les trois valeurs par les vôtres : clé API, devise, langue
+4. Enregistrer — c'est fait. Désormais, il suffit de double-cliquer sur `evaluate.bat`
+
+```bat
+@echo off
+set API_KEY=VOTRE_CLE_API_ICI
+set CURRENCY=CAD
+set LANG=fr
+
+set /p FILE=Path to XLS file:
+npx numista-eval "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+pause
+```
+
+> **Pour copier le chemin d'un fichier sous Windows :** maintenir `Shift`, clic droit sur le fichier XLS → **Copier en tant que chemin d'accès**. Puis coller quand demandé.
+>
+> C'est optionnel — la commande `npx` dans le terminal fonctionne exactement de la même façon.
 
 ## Quota API
 
-Numista accorde **2 000 requêtes par mois** avec une clé gratuite. Chaque évaluation consomme environ **60 requêtes** (3 par pièce), ce qui permet d'évaluer environ 30 échanges par mois.
+2 000 requêtes/mois (clé gratuite). Chaque évaluation ≈ 60 requêtes → ~30 évaluations/mois.
 
 ## Licence
 

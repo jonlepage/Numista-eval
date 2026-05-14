@@ -1,122 +1,102 @@
 # numista-eval
 
-Telemetry and statistics tool to evaluate the fairness of a coin swap on [Numista](https://www.numista.com).
+Evaluate the fairness of a coin swap on [Numista](https://www.numista.com).
 
 **🇫🇷 [Version française](README.fr.md)**
 
-<a href="pre1.jpg"><img src="pre1.jpg" width="150" /></a> <a href="prev2.jpg"><img src="prev2.jpg" width="150" /></a>
+## What it does
 
-## Why this tool
+You export a swap file from Numista, run the tool, and get an **Excel report** with estimated prices, rarity scores and a fairness verdict. The report is fully editable — adjust grades, exclude coins, share it with your swap partner.
 
-When swapping coins with another collector, it is often hard to tell whether the deal is truly balanced. `numista-eval` provides **objective, data-driven insight** by cross-referencing market prices, face values, rarity and condition for every coin in the trade.
+## Setup
 
-Results should not be taken at face value — Numista does not always have complete metadata, which may alter some estimates. This is why the generated Excel file is **fully editable**: prices, grades and conversion rates can be adjusted based on your own judgment whenever data is missing or seems inaccurate. The file can also be shared with your swap partner so both parties can discuss, iterate and reach a deal supported by numbers that satisfy everyone.
+1. Install [Node.js](https://nodejs.org) (version 20+)
+2. Get a free Numista API key → [numista.com/api](https://en.numista.com/api/doc/index.php)
+   > My account → API → Create an application → copy the key
 
-## What it produces
+## How to use
 
-- The **estimated market price** of each coin (in CAD, EUR or any currency)
-- A **rarity score** based on mintage
-- A **comparative summary** with verdict: FAIR, ACCEPTABLE or UNBALANCED
-- An **Excel file** with live formulas, editable to fine-tune your assessment
-- A **chart** for visual comparison
+**Step 1** — Export your swap from Numista:
 
-## Prerequisites
+- Open your swap page (e.g. `https://en.numista.com/echanges/echange.php?id=926052`)
+- Click **Export** → save the `.xls` file
 
-- [Node.js](https://nodejs.org) version 20 or later
-- A **Numista API key** (free) → [Get your key](https://en.numista.com/api/doc.php)
-
-> **How to get the key:** log in to Numista → My account → API → Create an application. You will receive a key (a long alphanumeric string).
-
-## Usage
-
-### The command
+**Step 2** — Run the evaluation:
 
 ```bash
-npx numista-eval "path/to/file.xls" YOUR_API_KEY
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY CAD --lang fr
 ```
 
-The report is printed in the terminal and an Excel file is generated in a `reports/` folder next to the source file.
+> Always use the **full path** to the XLS file, not a relative path.
 
-### How to get the swap file
-
-1. Go to the swap page on Numista (e.g. `https://en.numista.com/echanges/echange.php?id=926052`)
-2. Click **Export** (button at the top of the swap page)
-3. Save the `.xls` file to your computer
+**Step 3** — Open the Excel file from the `reports/` folder created next to your XLS.
 
 ### Examples
 
 ```bash
-# Evaluation in Canadian dollars (default)
-npx numista-eval "swap_bob_alice.xls" abc123def456...
+# French report in Canadian dollars
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY CAD --lang fr
 
-# Evaluation in euros
-npx numista-eval "swap_bob_alice.xls" abc123def456... EUR
+# English report in US dollars
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY USD --lang en
 
-# If your key is defined in a .env file
-npx numista-eval "swap_bob_alice.xls"
+# German report in euros
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY EUR --lang de
+
+# Chinese report in yuan
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY CNY --lang zh
+
+# Spanish report in Mexican pesos
+npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang es
 ```
 
-### Supported currencies
+**Languages** ([ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes))**:** `fr` `en` `de` `es` `pt` `it` `nl` `el` `ru` `zh` `ja`
 
-CAD (default), EUR, USD, GBP, and any [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) currency. Prices are computed by Numista in the chosen currency.
+**Currencies:** any [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code — CAD, EUR, USD, GBP, CNY, JPY…
 
-## The Excel file
+> **Tip:** create a `.env` file with `NUMISTA_API_KEY=YOUR_API_KEY` to avoid typing your key each time. On Windows, see `evaluate.example.bat` for a ready-to-use template.
 
-The Excel report contains:
+## The Excel report
 
-**"Évaluation" tab** — The main data table:
-
-| Column       | Content                                              |
-| ------------ | ---------------------------------------------------- |
-| #            | Numista number (clickable link to the coin page)     |
-| Nom          | Coin name                                            |
-| Pays         | Issuing country                                      |
-| Année        | Year of minting                                      |
-| A.           | Mint mark                                            |
-| V.Nom.       | Face value (nominal)                                 |
-| Dev.         | Currency code of the coin                            |
-| V.Nom (conv) | Face value converted to your currency                |
-| Prix         | Estimated price — adjusts based on selected QA grade |
-| Tirage       | Mintage (number of coins produced)                   |
-| Rareté       | Rarity score (1 = very common, 9 = rare)             |
-| QA           | Quality — pre-filled with the lowest available grade, editable (1 to 7) |
-| Réf.         | Catalogue reference (e.g. KM# 33, KM# 1169a)        |
-
-**On the right** — A currency conversion table with clickable Google links to verify rates, and a grade reference table.
-
-> **Exclude a coin from the calculation:** hide the row in Excel (select → right-click → Hide). Totals and the summary automatically recalculate thanks to SUBTOTAL formulas.
-
-**At the bottom** — The comparative summary: price, face value, rarity and average quality with percentage differences.
-
-### Quality (QA)
-
-The QA column offers a dropdown from 1 to 7. It is up to each user to assess the condition of their coins:
-
-| Score | FR  | EN  | Description                           |
-| ----- | --- | --- | ------------------------------------- |
-| 1     | AB  | AG  | Heavily worn, barely identifiable     |
-| 2     | B   | G   | Worn but identifiable                 |
-| 3     | TB  | F   | Visible wear, clear details           |
-| 4     | TTB | VF  | Light wear, nice appearance           |
-| 5     | SUP | XF  | Minimal wear                          |
-| 6     | SPL | AU  | Almost mint                           |
-| 7     | FDC | UNC | Perfect, never circulated             |
-
-> The price adjusts automatically when you change the QA grade in the Excel file. The grade is pre-filled with the lowest grade for which a price is available.
-
-**"Graphique" tab** — A chart visually comparing both sides of the swap.
+- **Price** adjusts automatically when you change the **QA** grade (1–7 dropdown)
+- **✔ column** lets you include (✓) or exclude (✗) each coin — totals recalculate instantly
+- Default ✓/✗ values are read from the Numista exchange file (your proposals vs. theirs)
+- **Conversion rates** are fetched live and shown with Google verification links
+- **Verdict** at the bottom: FAIR, ACCEPTABLE or UNBALANCED (colored)
 
 ## Tips
 
-- **Do not rely solely on price.** Numista estimates are based on member evaluations, many of whom are dealers. These prices reflect a market value that is often inflated and does not account for sentimental value or personal interest. For some, numismatics is a business; for others, it is a hobby — both perspectives are valid, but they do not weigh price the same way.
+- **Prices are estimates.** They reflect dealer market value, not collector or sentimental value.
+- **Commemorative coins** are usually harder to find than their price suggests — adjust accordingly.
+- **Check conversion rates** for unusual currencies using the links in the Excel file.
 
-- **Commemorative coins deserve special attention.** Even if their estimated price is similar to a regular coin, they are usually much harder to find — typically 0 to 5 per roll of 50 coins. This practical rarity is not always reflected in the price. It is recommended to manually adjust the QA column or the price for such coins.
+## Bonus: one-click evaluation (Windows)
 
-- **Verify conversion rates.** Some currencies returned by the API may seem unusual (historical currencies, local denominations). The conversion table in the Excel file provides a clickable link for each currency, allowing you to check the current rate on Google and confirm market conditions.
+Tired of typing the command every time? A `.bat` file lets you save your settings once and reuse them — just double-click and paste the file path.
+
+1. Copy [`evaluate.example.bat`](evaluate.example.bat) and rename the copy to `evaluate.bat`
+2. Open `evaluate.bat` in a text editor (right-click → Edit)
+3. Replace the three values with your own: API key, currency, language
+4. Save — you're done. From now on, just double-click `evaluate.bat`
+
+```bat
+@echo off
+set API_KEY=YOUR_API_KEY_HERE
+set CURRENCY=CAD
+set LANG=fr
+
+set /p FILE=Path to XLS file:
+npx numista-eval "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+pause
+```
+
+> **How to copy a file path on Windows:** its secret menu, hold `Shift`, right-click the XLS file → **Copy as path**. Then paste it when prompted.
+>
+> This is optional — the `npx` command in the terminal works exactly the same way.
 
 ## API quota
 
-Numista grants **2,000 requests per month** with a free key. Each evaluation uses approximately **60 requests** (3 per coin), which allows for about 30 evaluations per month.
+2,000 requests/month (free key). Each evaluation ≈ 60 requests → ~30 evaluations/month.
 
 ## License
 

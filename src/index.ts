@@ -28,6 +28,8 @@ function resolveArgs(args: string[]): { filePath: string; apiKey: string; curren
   if (second && isKey(second)) {
     apiKey = second;
     if (third && /^[A-Z]{3}$/.test(third)) currency = third;
+  } else if (second && /^[A-Z]{3}$/.test(second)) {
+    currency = second;
   }
 
   if (!apiKey) {
@@ -46,8 +48,10 @@ program
   .argument("<file>", "Fichier XLS exporté depuis Numista")
   .argument("[apiKey]", "Clé API Numista (ou via NUMISTA_API_KEY dans .env)")
   .argument("[currency]", "Code devise ISO 4217 (défaut: CAD)")
-  .action(async (file: string, apiKey?: string, currency?: string) => {
+  .option("-l, --lang <code>", "Langue du rapport Excel: fr,en,de,es,pt,it,nl,el,ru,zh,ja (défaut: fr)", "fr")
+  .action(async (file: string, apiKey?: string, currency?: string, options?: { lang: string }) => {
     const resolved = resolveArgs([file, apiKey ?? "", currency ?? ""].filter(Boolean));
+    const lang = options?.lang ?? "fr";
     const filePath = path.resolve(resolved.filePath);
 
     console.log("");
@@ -74,7 +78,7 @@ program
     const reportsDir = path.join(path.dirname(filePath), "reports");
     if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
 
-    const excelPath = await generateExcelReport(report, reportsDir);
+    const excelPath = await generateExcelReport(report, reportsDir, lang);
     const chartPath = await generateChartReport(report, reportsDir);
     console.log(`  Rapport Excel : ${excelPath}`);
     console.log(`  Graphique     : ${chartPath}`);

@@ -1,18 +1,12 @@
 import ExcelJS from "exceljs";
 import path from "path";
 import type { EvaluationReport, CoinWithPrices, Grade } from "../types/index.js";
+import { t, type ExcelStrings } from "../i18n.js";
 
 // ── Grade mapping ──────────────────────────────────────────────────────
 
 const GRADE_TO_QUALITY_SCORE: Record<Grade, number> = {
   g: 1, vg: 2, f: 3, vf: 4, xf: 5, au: 6, unc: 7,
-};
-
-const GRADE_LABELS_BY_LANG: Record<string, string[]> = {
-  fr: ["AB", "B", "TB", "TTB", "SUP", "SPL", "FDC"],
-  en: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
-  de: ["GE", "SGE", "S", "SS", "VZ", "UNZ", "St"],
-  es: ["RC", "BC", "BC+", "MBC", "EBC", "SC", "FDC"],
 };
 
 // ── Palette ────────────────────────────────────────────────────────────
@@ -85,24 +79,26 @@ const COLUMN_WIDTHS = [
   8, 8,                          // S-T (grade table)
 ];
 
-// ── Header definitions ─────────────────────────────────────────────────
+// ── Header builder ─────────────────────────────────────────────────────
 
-const HEADERS: { label: string; color: string }[] = [
-  { label: "#",            color: COLORS.grey },
-  { label: "Nom",          color: COLORS.grey },
-  { label: "Pays",         color: COLORS.blue },
-  { label: "Année",        color: COLORS.blue },
-  { label: "A.",           color: COLORS.blue },
-  { label: "V.Nom.",       color: COLORS.gold },
-  { label: "Dev.",         color: COLORS.gold },
-  { label: "V.Nom (conv)", color: COLORS.gold },
-  { label: "Prix",         color: COLORS.black },
-  { label: "Tirage",       color: COLORS.grey },
-  { label: "Rareté",       color: COLORS.grey },
-  { label: "QA",           color: COLORS.grey },
-  { label: "Réf.",         color: COLORS.grey },
-  { label: "Inc.",         color: COLORS.grey },
-];
+function buildHeaders(dict: ExcelStrings): { label: string; color: string }[] {
+  return [
+    { label: "#",                        color: COLORS.grey },
+    { label: dict.headers.name,          color: COLORS.grey },
+    { label: dict.headers.country,       color: COLORS.blue },
+    { label: dict.headers.year,          color: COLORS.blue },
+    { label: dict.headers.mintMark,      color: COLORS.blue },
+    { label: dict.headers.faceValue,     color: COLORS.gold },
+    { label: dict.headers.currency,      color: COLORS.gold },
+    { label: dict.headers.convertedValue, color: COLORS.gold },
+    { label: dict.headers.price,         color: COLORS.black },
+    { label: dict.headers.mintage,       color: COLORS.grey },
+    { label: dict.headers.rarity,        color: COLORS.grey },
+    { label: "QA ",                      color: COLORS.grey },
+    { label: "##",                       color: COLORS.grey },
+    { label: "✔",                       color: COLORS.grey },
+  ];
+}
 
 // ── Style helpers ──────────────────────────────────────────────────────
 
@@ -145,14 +141,15 @@ async function writeConversionTable(
   worksheet: ExcelJS.Worksheet,
   coins: CoinWithPrices[],
   currency: string,
+  dict: ExcelStrings,
 ): Promise<{ startRow: number; endRow: number }> {
   const uniqueCurrencies = [...new Set(coins.map(coin => coin.currencyCode).filter(Boolean))] as string[];
   if (!uniqueCurrencies.includes(currency)) uniqueCurrencies.unshift(currency);
 
   const conversionHeaderRow = worksheet.getRow(3);
-  conversionHeaderRow.getCell(CONVERSION_TABLE.currency).value = "Devise";
+  conversionHeaderRow.getCell(CONVERSION_TABLE.currency).value = dict.referenceTable.currency;
   conversionHeaderRow.getCell(CONVERSION_TABLE.rate).value = `1 → ${currency}`;
-  conversionHeaderRow.getCell(CONVERSION_TABLE.link).value = "Vérifier";
+  conversionHeaderRow.getCell(CONVERSION_TABLE.link).value = dict.referenceTable.verify;
   for (const col of [CONVERSION_TABLE.currency, CONVERSION_TABLE.rate, CONVERSION_TABLE.link]) {
     Object.assign(conversionHeaderRow.getCell(col), headerStyle(COLORS.gold));
   }
@@ -181,28 +178,32 @@ async function writeConversionTable(
   return { startRow, endRow: startRow + uniqueCurrencies.length - 1 };
 }
 
-function writeGradeReferenceTable(worksheet: ExcelJS.Worksheet, gradeLabels: string[]): void {
+function writeGradeReferenceTable(worksheet: ExcelJS.Worksheet, dict: ExcelStrings): void {
   const gradeHeaderRow = worksheet.getRow(3);
-  gradeHeaderRow.getCell(GRADE_TABLE.score).value = "Score";
-  gradeHeaderRow.getCell(GRADE_TABLE.label).value = "Grade";
+  gradeHeaderRow.getCell(GRADE_TABLE.score).value = dict.referenceTable.score;
+  gradeHeaderRow.getCell(GRADE_TABLE.label).value = dict.referenceTable.grade;
   Object.assign(gradeHeaderRow.getCell(GRADE_TABLE.score), headerStyle(COLORS.grey));
   Object.assign(gradeHeaderRow.getCell(GRADE_TABLE.label), headerStyle(COLORS.grey));
 
   const startRow = 4;
-  for (let i = 0; i < gradeLabels.length; i++) {
+  for (let i = 0; i < dict.gradeLabels.length; i++) {
     const excelRow = worksheet.getRow(startRow + i);
     excelRow.getCell(GRADE_TABLE.score).value = i + 1;
     excelRow.getCell(GRADE_TABLE.score).font = boldFont();
-    excelRow.getCell(GRADE_TABLE.label).value = gradeLabels[i];
+    excelRow.getCell(GRADE_TABLE.label).value = dict.gradeLabels[i];
     excelRow.getCell(GRADE_TABLE.label).font = { size: 10 };
   }
 }
 
 // ── Data writers ───────────────────────────────────────────────────────
 
-function writeHeaders(worksheet: ExcelJS.Worksheet, rowNumber: number): void {
+function writeHeaders(
+  worksheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  headers: { label: string; color: string }[],
+): void {
   const excelRow = worksheet.getRow(rowNumber);
-  HEADERS.forEach((header, index) => {
+  headers.forEach((header, index) => {
     const cell = excelRow.getCell(index + 1);
     cell.value = header.label;
     Object.assign(cell, headerStyle(header.color));
@@ -332,25 +333,26 @@ function writeVerdict(
   worksheet: ExcelJS.Worksheet,
   verdictRowNumber: number,
   priceRowNumber: number,
+  dict: ExcelStrings,
 ): void {
   const colReceived = columnLetter(BILAN.received);
   const colDiff = columnLetter(BILAN.difference);
   const colPct = columnLetter(BILAN.percent);
 
   const verdictRow = worksheet.getRow(verdictRowNumber);
-  verdictRow.getCell(BILAN.label).value = "VERDICT";
+  verdictRow.getCell(BILAN.label).value = dict.verdict.label;
   verdictRow.getCell(BILAN.label).font = boldFont(12);
   verdictRow.getCell(BILAN.received).value = formula(
-    `IF(ABS(${colPct}${priceRowNumber})<=10,"ÉQUITABLE",IF(ABS(${colPct}${priceRowNumber})<=25,"ACCEPTABLE","DÉSÉQUILIBRÉ"))`
+    `IF(ABS(${colPct}${priceRowNumber})<=10,"${dict.verdict.fair}",IF(ABS(${colPct}${priceRowNumber})<=25,"${dict.verdict.acceptable}","${dict.verdict.unbalanced}"))`
   );
   verdictRow.getCell(BILAN.received).font = boldFont(14);
 
   worksheet.addConditionalFormatting({
     ref: `${colReceived}${verdictRowNumber}`,
     rules: [
-      { type: "containsText", operator: "containsText", text: "ÉQUITABLE", style: { font: { color: { argb: COLORS.verdictFair } } }, priority: 1 },
-      { type: "containsText", operator: "containsText", text: "ACCEPTABLE", style: { font: { color: { argb: COLORS.verdictAcceptable } } }, priority: 2 },
-      { type: "containsText", operator: "containsText", text: "DÉSÉQUILIBRÉ", style: { font: { color: { argb: COLORS.verdictUnbalanced } } }, priority: 3 },
+      { type: "containsText", operator: "containsText", text: dict.verdict.fair, style: { font: { color: { argb: COLORS.verdictFair } } }, priority: 1 },
+      { type: "containsText", operator: "containsText", text: dict.verdict.acceptable, style: { font: { color: { argb: COLORS.verdictAcceptable } } }, priority: 2 },
+      { type: "containsText", operator: "containsText", text: dict.verdict.unbalanced, style: { font: { color: { argb: COLORS.verdictUnbalanced } } }, priority: 3 },
     ],
   });
 
@@ -362,6 +364,13 @@ function writeVerdict(
         { type: "cellIs", operator: "lessThan", formulae: ["0"], style: { font: { color: { argb: COLORS.verdictUnbalanced } } }, priority: 11 },
       ],
     });
+    worksheet.addConditionalFormatting({
+      ref: `${colPct}${diffRow}`,
+      rules: [
+        { type: "cellIs", operator: "greaterThan", formulae: ["0"], style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: COLORS.receivedBackground } } }, priority: 12 },
+        { type: "cellIs", operator: "lessThan", formulae: ["0"], style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: COLORS.givenBackground } } }, priority: 13 },
+      ],
+    });
   }
 }
 
@@ -371,24 +380,25 @@ function writeBilan(
   received: SectionLayout,
   given: SectionLayout,
   currency: string,
+  dict: ExcelStrings,
 ): void {
   const bilanFill = solidFill(COLORS.subtotalBackground);
   const bilanBorder: Partial<ExcelJS.Borders> = { bottom: { style: "thin", color: { argb: COLORS.border } } };
   let currentRow = startRow;
 
-  worksheet.getRow(currentRow).getCell(BILAN.label).value = "BILAN COMPARATIF";
+  worksheet.getRow(currentRow).getCell(BILAN.label).value = dict.bilan.title;
   worksheet.getRow(currentRow).getCell(BILAN.label).font = boldFont(13);
   currentRow++;
 
   const bilanHeaderRow = worksheet.getRow(currentRow);
   bilanHeaderRow.getCell(BILAN.label).value = "";
-  bilanHeaderRow.getCell(BILAN.received).value = "Je reçois";
+  bilanHeaderRow.getCell(BILAN.received).value = dict.bilan.iReceive;
   bilanHeaderRow.getCell(BILAN.received).font = { bold: true, size: 10, color: { argb: COLORS.verdictFair } };
-  bilanHeaderRow.getCell(BILAN.given).value = "Je donne";
+  bilanHeaderRow.getCell(BILAN.given).value = dict.bilan.iGive;
   bilanHeaderRow.getCell(BILAN.given).font = { bold: true, size: 10, color: { argb: COLORS.verdictUnbalanced } };
-  bilanHeaderRow.getCell(BILAN.difference).value = "Diff.";
+  bilanHeaderRow.getCell(BILAN.difference).value = dict.bilan.difference;
   bilanHeaderRow.getCell(BILAN.difference).font = boldFont();
-  bilanHeaderRow.getCell(BILAN.percent).value = "Écart %";
+  bilanHeaderRow.getCell(BILAN.percent).value = dict.bilan.gap;
   bilanHeaderRow.getCell(BILAN.percent).font = boldFont();
   bilanHeaderRow.eachCell((cell) => {
     cell.fill = bilanFill;
@@ -415,31 +425,34 @@ function writeBilan(
     excelRow.getCell(BILAN.given).value = formula(givenFormula);
     excelRow.getCell(BILAN.given).numFmt = numFmt;
     excelRow.getCell(BILAN.difference).value = formula(`${colReceived}${currentRow}-${colGiven}${currentRow}`);
-    excelRow.getCell(BILAN.difference).numFmt = numFmt.includes("#") ? `+${numFmt};-${numFmt}` : "+0.0;-0.0";
+    excelRow.getCell(BILAN.difference).numFmt = numFmt.includes("#") ? `+${numFmt}" ${currency}";-${numFmt}" ${currency}"` : "+0.0;-0.0";
     excelRow.getCell(BILAN.percent).value = formula(
       `IFERROR(IF(${colGiven}${currentRow}=0,0,(${colReceived}${currentRow}-${colGiven}${currentRow})/${colGiven}${currentRow}*100),0)`
     );
     excelRow.getCell(BILAN.percent).numFmt = `+0.0"%";-0.0"%"`;
-    excelRow.eachCell((cell) => { cell.fill = bilanFill; cell.border = bilanBorder; });
+    excelRow.eachCell((cell, colNumber) => {
+      if (colNumber !== BILAN.percent) cell.fill = bilanFill;
+      cell.border = bilanBorder;
+    });
     currentRow++;
   };
 
   const priceRow = currentRow;
-  writeLine(`Prix (${currency})`, `I${received.totalRow}`, `I${given.totalRow}`, "#,##0.00");
+  writeLine(`${dict.bilan.price} (${currency})`, `I${received.totalRow}`, `I${given.totalRow}`, "#,##0.00");
   writeLine(
-    `Nominal conv. (${currency})`, `H${received.totalRow}`, `H${given.totalRow}`, "#,##0.00",
+    `${dict.bilan.nominalConverted} (${currency})`, `H${received.totalRow}`, `H${given.totalRow}`, "#,##0.00",
     { bold: true, size: 10, color: { argb: COLORS.gold } },
   );
-  writeLine("Rareté moy. (/10)", `K${received.totalRow}`, `K${given.totalRow}`, "0.0");
+  writeLine(`${dict.bilan.avgRarity} (/10)`, `K${received.totalRow}`, `K${given.totalRow}`, "0.0");
   writeLine(
-    "QA moy. (/7)",
+    `${dict.bilan.avgQuality} (/7)`,
     `IFERROR(AVERAGEIF(N${received.dataStartRow}:N${received.dataEndRow},"✓",L${received.dataStartRow}:L${received.dataEndRow}),"—")`,
     `IFERROR(AVERAGEIF(N${given.dataStartRow}:N${given.dataEndRow},"✓",L${given.dataStartRow}:L${given.dataEndRow}),"—")`,
     "0.0",
   );
 
   currentRow++;
-  writeVerdict(worksheet, currentRow, priceRow);
+  writeVerdict(worksheet, currentRow, priceRow, dict);
 }
 
 // ── Currency rates ─────────────────────────────────────────────────────
@@ -456,6 +469,33 @@ async function fetchExchangeRates(targetCurrency: string): Promise<Record<string
   }
 }
 
+// ── Title parser ───────────────────────────────────────────────────────
+
+interface ParsedTitle {
+  exchangeNumber: string;
+  name1: string;
+  name2: string;
+}
+
+function parseExchangeTitle(rawTitle: string): ParsedTitle | null {
+  const match = rawTitle.match(/[ÉEe]change\s+n°?\s*(\d+)\s*:\s*(.+?)\s*-\s*(.+)/i);
+  if (!match) return null;
+  return { exchangeNumber: match[1], name1: match[2].trim(), name2: match[3].trim() };
+}
+
+function buildTitle(parsed: ParsedTitle, dict: ExcelStrings): string {
+  return dict.exchangeTitle
+    .replace("{n}", parsed.exchangeNumber)
+    .replace("{name1}", parsed.name1)
+    .replace("{name2}", parsed.name2);
+}
+
+function buildFilename(parsed: ParsedTitle | null, datestamp: string): string {
+  if (!parsed) return `numista-eval_${datestamp}`;
+  const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9àâéèêëïîôùûüçñáíóúãõäöüßÀÂÉÈÊËÏÎÔÙÛÜÇÑÁÍÓÚÃÕÄÖÜ-]/g, "").replace(/\s+/g, "-");
+  return `${sanitize(parsed.name1)}_${sanitize(parsed.name2)}_${parsed.exchangeNumber}_${datestamp}`;
+}
+
 // ── Main export ────────────────────────────────────────────────────────
 
 export async function generateExcelReport(
@@ -464,49 +504,51 @@ export async function generateExcelReport(
   lang = "fr",
 ): Promise<string> {
   const { currency } = report;
-  const gradeLabels = GRADE_LABELS_BY_LANG[lang] ?? GRADE_LABELS_BY_LANG.fr;
+  const dict = t(lang);
+  const headers = buildHeaders(dict);
+  const parsed = parseExchangeTitle(report.title);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "numista-eval";
   workbook.created = new Date();
 
-  const worksheet = workbook.addWorksheet("Évaluation", { views: [{ state: "frozen", ySplit: 4 }] });
+  const worksheet = workbook.addWorksheet(dict.sheetName, { views: [{ state: "frozen", ySplit: 4 }] });
   worksheet.columns = COLUMN_WIDTHS.map(width => ({ width }));
 
   // Title
   worksheet.mergeCells("A1:F1");
-  worksheet.getRow(1).getCell(1).value = report.title;
+  worksheet.getRow(1).getCell(1).value = parsed ? buildTitle(parsed, dict) : report.title;
   worksheet.getRow(1).getCell(1).font = boldFont(14);
 
   worksheet.mergeCells("A2:F2");
-  worksheet.getRow(2).getCell(1).value = `${new Date(report.timestamp).toLocaleString("fr-CA")} — ${currency}`;
+  worksheet.getRow(2).getCell(1).value = `${new Date(report.timestamp).toLocaleString()} — ${currency}`;
   worksheet.getRow(2).getCell(1).font = { size: 9, italic: true, color: { argb: COLORS.subtitle } };
 
   // Reference tables (right side)
   const allCoins = [...report.demanded.coins, ...report.offered.coins];
-  const conversionRange = await writeConversionTable(worksheet, allCoins, currency);
-  writeGradeReferenceTable(worksheet, gradeLabels);
+  const conversionRange = await writeConversionTable(worksheet, allCoins, currency, dict);
+  writeGradeReferenceTable(worksheet, dict);
 
   // Received section
-  writeHeaders(worksheet, 4);
+  writeHeaders(worksheet, 4, headers);
   let currentRow = 5;
 
   const receivedStartRow = currentRow;
   currentRow = writeCoinRows(worksheet, report.demanded.coins, currentRow, COLORS.receivedBackground, conversionRange.startRow, conversionRange.endRow);
   const receivedEndRow = currentRow - 1;
   const receivedTotalRow = currentRow;
-  currentRow = writeSectionTotals(worksheet, currentRow, "TOTAL REÇU", receivedStartRow, receivedEndRow);
+  currentRow = writeSectionTotals(worksheet, currentRow, dict.sections.totalReceived, receivedStartRow, receivedEndRow);
   currentRow++;
 
   // Given section
-  writeHeaders(worksheet, currentRow);
+  writeHeaders(worksheet, currentRow, headers);
   currentRow++;
 
   const givenStartRow = currentRow;
   currentRow = writeCoinRows(worksheet, report.offered.coins, currentRow, COLORS.givenBackground, conversionRange.startRow, conversionRange.endRow);
   const givenEndRow = currentRow - 1;
   const givenTotalRow = currentRow;
-  currentRow = writeSectionTotals(worksheet, currentRow, "TOTAL DONNÉ", givenStartRow, givenEndRow);
+  currentRow = writeSectionTotals(worksheet, currentRow, dict.sections.totalGiven, givenStartRow, givenEndRow);
   currentRow += 2;
 
   // Bilan
@@ -516,12 +558,12 @@ export async function generateExcelReport(
     { totalRow: receivedTotalRow, dataStartRow: receivedStartRow, dataEndRow: receivedEndRow },
     { totalRow: givenTotalRow, dataStartRow: givenStartRow, dataEndRow: givenEndRow },
     currency,
+    dict,
   );
 
   // Save
   const datestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-  const safeName = report.title.replace(/[^a-zA-Z0-9àâéèêëïîôùûçÀÂÉÈÊËÏÎÔÙÛÇ\s-]/g, "").trim().replace(/\s+/g, "_");
-  const outputPath = path.join(outputDir, `${safeName}_${datestamp}.xlsx`);
+  const outputPath = path.join(outputDir, `${buildFilename(parsed, datestamp)}.xlsx`);
 
   await workbook.xlsx.writeFile(outputPath);
   return outputPath;
