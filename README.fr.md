@@ -92,6 +92,10 @@ pause
 >
 > C'est optionnel — la commande `npx` dans le terminal fonctionne exactement de la même façon.
 
+## Limitations
+
+- **Les grades (QA) sont approximatifs.** Numista ne fournit pas d'information sur l'état de conservation des pièces dans les fichiers d'échange. L'outil utilise par défaut le grade le plus bas connu pour chaque pièce. Vous devez vérifier et ajuster manuellement la colonne QA selon l'état réel de chaque pièce — cela affecte directement le prix estimé.
+
 ## Quota API
 
 2 000 requêtes/mois (clé gratuite). Chaque évaluation ≈ 60 requêtes → ~30 évaluations/mois.

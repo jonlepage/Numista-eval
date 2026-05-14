@@ -94,6 +94,10 @@ pause
 >
 > This is optional — the `npx` command in the terminal works exactly the same way.
 
+## Limitations
+
+- **Grades (QA) are approximate.** Numista does not provide coin condition information in swap files. The tool defaults to the lowest known grade for each coin. You should manually verify and adjust the QA column based on the actual condition of each coin — this directly affects the estimated price.
+
 ## API quota
 
 2,000 requests/month (free key). Each evaluation ≈ 60 requests → ~30 evaluations/month.
