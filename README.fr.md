@@ -80,8 +80,11 @@ Le rapport Excel contient :
 | Tirage       | Nombre d'exemplaires produits                        |
 | Rareté       | Score de rareté (1 = très commun, 9 = rare)          |
 | QA           | Qualité — pré-rempli selon le grade le plus bas disponible, modifiable (1 à 7) |
+| Réf.         | Référence catalogue (ex : KM# 33, KM# 1169a)        |
 
 **À droite** — Un tableau de conversion des devises avec des liens Google pour vérifier les taux, ainsi qu'un tableau de référence des grades de qualité.
+
+> **Exclure une pièce du calcul :** masquez la ligne dans Excel (sélectionner → clic droit → Masquer). Les totaux et le bilan se recalculent automatiquement grâce aux formules SUBTOTAL.
 
 **En bas** — Le bilan comparatif : prix, valeur nominale, rareté et qualité moyennes avec les écarts en pourcentage.
 

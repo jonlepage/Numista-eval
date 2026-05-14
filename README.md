@@ -80,8 +80,11 @@ The Excel report contains:
 | Tirage       | Mintage (number of coins produced)                   |
 | Rareté       | Rarity score (1 = very common, 9 = rare)             |
 | QA           | Quality — pre-filled with the lowest available grade, editable (1 to 7) |
+| Réf.         | Catalogue reference (e.g. KM# 33, KM# 1169a)        |
 
 **On the right** — A currency conversion table with clickable Google links to verify rates, and a grade reference table.
+
+> **Exclude a coin from the calculation:** hide the row in Excel (select → right-click → Hide). Totals and the summary automatically recalculate thanks to SUBTOTAL formulas.
 
 **At the bottom** — The comparative summary: price, face value, rarity and average quality with percentage differences.
 
