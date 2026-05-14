@@ -9,7 +9,9 @@ set LANG=fr
 
 echo.
 set /p FILE=Path to XLS file:
+set FILE=%FILE:"=%
 echo.
 
-npx numista-eval "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+call npx numista-eval@latest "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+echo.
 pause

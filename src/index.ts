@@ -44,7 +44,7 @@ function resolveArgs(args: string[]): { filePath: string; apiKey: string; curren
 program
   .name("numista-eval")
   .description("Évaluateur d'échanges Numista")
-  .version("0.1.0")
+  .version("0.3.1")
   .argument("<file>", "Fichier XLS exporté depuis Numista")
   .argument("[apiKey]", "Clé API Numista (ou via NUMISTA_API_KEY dans .env)")
   .argument("[currency]", "Code devise ISO 4217 (défaut: CAD)")
