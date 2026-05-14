@@ -52,6 +52,7 @@ const COL = {
   rarity: 11,         // K
   quality: 12,        // L
   reference: 13,      // M
+  included: 14,       // N
 } as const;
 
 const CONVERSION_TABLE = {
@@ -78,7 +79,7 @@ const BILAN = {
 const COLUMN_WIDTHS = [
   12, 44, 16, 7, 5,             // A-E
   12, 7, 14, 14, 14, 10, 6,     // F-L
-  18, 2,                         // M (ref), N (spacer)
+  18, 6,                          // M (ref), N (Inc.)
   10, 14, 20,                    // O-Q (conversion table)
   2,                             // R (spacer)
   8, 8,                          // S-T (grade table)
@@ -100,6 +101,7 @@ const HEADERS: { label: string; color: string }[] = [
   { label: "Rareté",       color: COLORS.grey },
   { label: "QA",           color: COLORS.grey },
   { label: "Réf.",         color: COLORS.grey },
+  { label: "Inc.",         color: COLORS.grey },
 ];
 
 // ── Style helpers ──────────────────────────────────────────────────────
@@ -266,6 +268,14 @@ function writeCoinRows(
 
     excelRow.getCell(COL.reference).value = coin.raw.refKM || "";
 
+    excelRow.getCell(COL.included).value = coin.raw.selected ? "✓" : "✗";
+    excelRow.getCell(COL.included).alignment = { horizontal: "center", vertical: "middle" };
+    excelRow.getCell(COL.included).dataValidation = {
+      type: "list",
+      allowBlank: false,
+      formulae: ['"✓,✗"'],
+    };
+
     excelRow.eachCell((cell) => {
       cell.fill = solidFill(backgroundColor);
       if (!cell.font?.underline) cell.font = { ...cell.font, size: 10 };
@@ -290,18 +300,18 @@ function writeSectionTotals(
   excelRow.getCell(COL.numistaId).value = label;
   excelRow.getCell(COL.numistaId).font = boldFont();
 
-  excelRow.getCell(COL.convertedValue).value = formula(`SUBTOTAL(109,H${dataStartRow}:H${dataEndRow})`);
+  excelRow.getCell(COL.convertedValue).value = formula(`SUMIF(N${dataStartRow}:N${dataEndRow},"✓",H${dataStartRow}:H${dataEndRow})`);
   excelRow.getCell(COL.convertedValue).numFmt = "#,##0.00";
   excelRow.getCell(COL.convertedValue).font = boldFont();
 
-  excelRow.getCell(COL.price).value = formula(`SUBTOTAL(109,I${dataStartRow}:I${dataEndRow})`);
+  excelRow.getCell(COL.price).value = formula(`SUMIF(N${dataStartRow}:N${dataEndRow},"✓",I${dataStartRow}:I${dataEndRow})`);
   excelRow.getCell(COL.price).numFmt = "#,##0.00";
   excelRow.getCell(COL.price).font = boldFont(11);
 
-  excelRow.getCell(COL.rarity).value = formula(`IFERROR(SUBTOTAL(101,K${dataStartRow}:K${dataEndRow}),"")`);
+  excelRow.getCell(COL.rarity).value = formula(`IFERROR(AVERAGEIF(N${dataStartRow}:N${dataEndRow},"✓",K${dataStartRow}:K${dataEndRow}),"")`);
   excelRow.getCell(COL.rarity).numFmt = "0.0";
 
-  excelRow.getCell(COL.quality).value = formula(`IFERROR(SUBTOTAL(101,L${dataStartRow}:L${dataEndRow}),"")`);
+  excelRow.getCell(COL.quality).value = formula(`IFERROR(AVERAGEIF(N${dataStartRow}:N${dataEndRow},"✓",L${dataStartRow}:L${dataEndRow}),"")`);
   excelRow.getCell(COL.quality).numFmt = "0.0";
 
   const totalBorder: Partial<ExcelJS.Borders> = {
@@ -423,8 +433,8 @@ function writeBilan(
   writeLine("Rareté moy. (/10)", `K${received.totalRow}`, `K${given.totalRow}`, "0.0");
   writeLine(
     "QA moy. (/7)",
-    `IFERROR(SUBTOTAL(101,L${received.dataStartRow}:L${received.dataEndRow}),"—")`,
-    `IFERROR(SUBTOTAL(101,L${given.dataStartRow}:L${given.dataEndRow}),"—")`,
+    `IFERROR(AVERAGEIF(N${received.dataStartRow}:N${received.dataEndRow},"✓",L${received.dataStartRow}:L${received.dataEndRow}),"—")`,
+    `IFERROR(AVERAGEIF(N${given.dataStartRow}:N${given.dataEndRow},"✓",L${given.dataStartRow}:L${given.dataEndRow}),"—")`,
     "0.0",
   );
 

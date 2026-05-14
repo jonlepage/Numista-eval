@@ -5,6 +5,7 @@ export interface RawCoin {
   title: string;
   year: number;
   mintMark: string;
+  selected: boolean;
 }
 
 export interface ParsedExchange {

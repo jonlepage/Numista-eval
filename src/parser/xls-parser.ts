@@ -112,6 +112,9 @@ export function parseNumistaXls(filePath: string): ParsedExchange {
     const yearRaw = row[4];
     const year = typeof yearRaw === "number" ? Math.floor(yearRaw) : 0;
 
+    const myProposition = row[6] != null ? String(row[6]).trim().toLowerCase() : "";
+    const theirProposition = row[7] != null ? String(row[7]).trim().toLowerCase() : "";
+
     const coin: RawCoin = {
       issuer: cell0,
       refKM: row[1] != null ? String(row[1]) : "",
@@ -119,6 +122,7 @@ export function parseNumistaXls(filePath: string): ParsedExchange {
       title: row[3] != null ? String(row[3]) : "",
       year,
       mintMark: row[5] != null ? String(row[5]) : "",
+      selected: currentSection === "demand" ? myProposition === "x" : theirProposition === "x",
     };
 
     if (currentSection === "demand") {
