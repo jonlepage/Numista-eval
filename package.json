@@ -1,14 +1,16 @@
 {
   "name": "numista-eval",
-  "version": "0.2.0",
-  "description": "Évaluateur d'échanges Numista — calcule la valeur et l'équité d'un échange entre collectionneurs",
+  "version": "0.3.0",
+  "description": "Evaluate the fairness of a coin swap on Numista — prices, rarity, grades and verdict",
   "type": "module",
   "bin": {
     "numista-eval": "./dist/index.cjs"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "README.fr.md",
+    "evaluate.example.bat"
   ],
   "scripts": {
     "build": "tsup",
@@ -23,10 +25,22 @@
     "numismatic",
     "coin",
     "exchange",
-    "evaluation"
+    "swap",
+    "evaluation",
+    "rarity",
+    "grading",
+    "excel"
   ],
   "author": "JonLepage",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jonlepage/Numista.git"
+  },
+  "homepage": "https://github.com/jonlepage/Numista#readme",
+  "bugs": {
+    "url": "https://github.com/jonlepage/Numista/issues"
+  },
   "engines": {
     "node": ">=20.0.0"
   },
