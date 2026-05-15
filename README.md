@@ -73,7 +73,7 @@ npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang e
 
 ## One-click evaluation (Windows)
 
-Tired of typing the command every time? A `.bat` file lets you save your settings once and reuse them — just double-click and paste the file path.
+To avoid repeating the full command, create a reusable batch file with your settings.
 
 1. Create a new text file and rename it to `evaluate.bat`
 2. Copy the contents of [`evaluate.example.bat`](evaluate.example.bat) into it
@@ -87,6 +87,7 @@ set CURRENCY=CAD
 set LANG=fr
 
 set /p FILE=Path to XLS file:
+set FILE=%FILE:"=%
 call npx numista-eval@latest "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
 pause
 ```
