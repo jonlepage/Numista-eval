@@ -11,8 +11,7 @@ You export a swap file from Numista, run the tool, and get an **Excel report** w
 ## Setup
 
 1. Install [Node.js](https://nodejs.org) (version 20+)
-2. Get a free Numista API key → [numista.com/api](https://en.numista.com/api/doc/index.php)
-   > My account → API → Create an application → copy the key
+2. Get a free Numista API key → [numista.com/api](https://en.numista.com/api/index.php)
 
 ## How to use
 
@@ -21,13 +20,11 @@ You export a swap file from Numista, run the tool, and get an **Excel report** w
 - Open your swap page (e.g. `https://en.numista.com/echanges/echange.php?id=926052`)
 - Click **Export** → save the `.xls` file
 
-**Step 2** — Run the evaluation:
+**Step 2** — Open a terminal and run:
 
 ```bash
 npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY CAD --lang fr
 ```
-
-> Always use the **full path** to the XLS file, not a relative path.
 
 **Step 3** — Open the Excel file from the `reports/` folder created next to your XLS.
 
@@ -64,18 +61,22 @@ npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang e
 - **Conversion rates** are fetched live and shown with Google verification links
 - **Verdict** at the bottom: FAIR, ACCEPTABLE or UNBALANCED (colored)
 
+## Limitations
+
+- **Grades (QA) are approximate.** Numista does not provide coin condition information in swap files. The tool defaults to the lowest known grade for each coin. You should manually verify and adjust the QA column based on the actual condition of each coin — this directly affects the estimated price.
+
 ## Tips
 
 - **Prices are estimates.** They reflect dealer market value, not collector or sentimental value.
 - **Commemorative coins** are usually harder to find than their price suggests — adjust accordingly.
 - **Check conversion rates** for unusual currencies using the links in the Excel file.
 
-## Bonus: one-click evaluation (Windows)
+## One-click evaluation (Windows)
 
 Tired of typing the command every time? A `.bat` file lets you save your settings once and reuse them — just double-click and paste the file path.
 
-1. Copy [`evaluate.example.bat`](evaluate.example.bat) and rename the copy to `evaluate.bat`
-2. Open `evaluate.bat` in a text editor (right-click → Edit)
+1. Create a new text file and rename it to `evaluate.bat`
+2. Copy the contents of [`evaluate.example.bat`](evaluate.example.bat) into it
 3. Replace the three values with your own: API key, currency, language
 4. Save — you're done. From now on, just double-click `evaluate.bat`
 
@@ -86,17 +87,13 @@ set CURRENCY=CAD
 set LANG=fr
 
 set /p FILE=Path to XLS file:
-npx numista-eval "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+call npx numista-eval@latest "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
 pause
 ```
 
-> **How to copy a file path on Windows:** its secret menu, hold `Shift`, right-click the XLS file → **Copy as path**. Then paste it when prompted.
+> **How to copy a file path on Windows:** hold `Shift` and right-click the XLS file to reveal the hidden menu, then select **Copy as path**.
 >
 > This is optional — the `npx` command in the terminal works exactly the same way.
-
-## Limitations
-
-- **Grades (QA) are approximate.** Numista does not provide coin condition information in swap files. The tool defaults to the lowest known grade for each coin. You should manually verify and adjust the QA column based on the actual condition of each coin — this directly affects the estimated price.
 
 ## API quota
 

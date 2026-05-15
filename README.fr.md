@@ -11,8 +11,7 @@ Vous exportez un fichier d'échange depuis Numista, vous lancez l'outil, et vous
 ## Installation
 
 1. Installer [Node.js](https://nodejs.org) (version 20+)
-2. Obtenir une clé API Numista gratuite → [numista.com/api](https://en.numista.com/api/doc/index.php)
-   > Mon compte → API → Créer une application → copier la clé
+2. Obtenir une clé API Numista gratuite → [numista.com/api](https://fr.numista.com/api/index.php)
 
 ## Comment utiliser
 
@@ -20,12 +19,10 @@ Vous exportez un fichier d'échange depuis Numista, vous lancez l'outil, et vous
 - Ouvrir la page de votre échange (ex : `https://fr.numista.com/echanges/echange.php?id=926052`)
 - Cliquer sur **Exporter** → enregistrer le fichier `.xls`
 
-**Étape 2** — Lancer l'évaluation :
+**Étape 2** — Ouvrir un terminal et exécuter :
 ```bash
 npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API CAD --lang fr
 ```
-
-> Utilisez toujours le **chemin complet** vers le fichier XLS, pas un chemin relatif.
 
 **Étape 3** — Ouvrir le fichier Excel dans le dossier `reports/` créé à côté de votre XLS.
 
@@ -62,18 +59,22 @@ npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API MXN 
 - Les **taux de conversion** sont récupérés en direct avec des liens Google pour vérification
 - Le **verdict** en bas : ÉQUITABLE, ACCEPTABLE ou DÉSÉQUILIBRÉ (coloré)
 
+## Limitations
+
+- **Les grades (QA) sont approximatifs.** Numista ne fournit pas d'information sur l'état de conservation des pièces dans les fichiers d'échange. L'outil utilise par défaut le grade le plus bas connu pour chaque pièce. Vous devez vérifier et ajuster manuellement la colonne QA selon l'état réel de chaque pièce — cela affecte directement le prix estimé.
+
 ## Conseils
 
 - **Les prix sont des estimations.** Ils reflètent la valeur marchande des revendeurs, pas la valeur sentimentale ou de collectionneur.
 - **Les pièces commémoratives** sont généralement plus difficiles à trouver que leur prix ne le suggère — ajustez en conséquence.
 - **Vérifiez les taux de conversion** pour les devises inhabituelles grâce aux liens dans le fichier Excel.
 
-## Bonus : évaluation en un clic (Windows)
+## Évaluation en un clic (Windows)
 
 Fatigué de taper la commande à chaque fois ? Un fichier `.bat` permet de sauvegarder vos paramètres une seule fois et de les réutiliser — il suffit de double-cliquer et coller le chemin du fichier.
 
-1. Copier [`evaluate.example.bat`](evaluate.example.bat) et renommer la copie en `evaluate.bat`
-2. Ouvrir `evaluate.bat` dans un éditeur de texte (clic droit → Modifier)
+1. Créer un nouveau fichier texte et le renommer en `evaluate.bat`
+2. Copier le contenu de [`evaluate.example.bat`](evaluate.example.bat) dedans
 3. Remplacer les trois valeurs par les vôtres : clé API, devise, langue
 4. Enregistrer — c'est fait. Désormais, il suffit de double-cliquer sur `evaluate.bat`
 
@@ -84,17 +85,13 @@ set CURRENCY=CAD
 set LANG=fr
 
 set /p FILE=Path to XLS file:
-npx numista-eval "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
+call npx numista-eval@latest "%FILE%" %API_KEY% %CURRENCY% --lang %LANG%
 pause
 ```
 
-> **Pour copier le chemin d'un fichier sous Windows :** maintenir `Shift`, clic droit sur le fichier XLS → **Copier en tant que chemin d'accès**. Puis coller quand demandé.
+> **Pour copier le chemin d'un fichier sous Windows :** maintenir `Shift` et faire un clic droit sur le fichier XLS pour afficher le menu caché, puis sélectionner **Copier en tant que chemin d'accès**.
 >
 > C'est optionnel — la commande `npx` dans le terminal fonctionne exactement de la même façon.
-
-## Limitations
-
-- **Les grades (QA) sont approximatifs.** Numista ne fournit pas d'information sur l'état de conservation des pièces dans les fichiers d'échange. L'outil utilise par défaut le grade le plus bas connu pour chaque pièce. Vous devez vérifier et ajuster manuellement la colonne QA selon l'état réel de chaque pièce — cela affecte directement le prix estimé.
 
 ## Quota API
 
