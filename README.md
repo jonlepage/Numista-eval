@@ -64,6 +64,7 @@ npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang e
 ## Limitations
 
 - **Grades (QA) are approximate.** Numista does not provide coin condition information in swap files. The tool defaults to the lowest known grade for each coin. You should manually verify and adjust the QA column based on the actual condition of each coin — this directly affects the estimated price.
+- **Not all languages are fully supported.** The Excel report is available in 11 languages (see list above). If an unsupported language code is provided, the report falls back to English.
 
 ## Tips
 

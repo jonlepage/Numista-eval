@@ -62,6 +62,7 @@ npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API MXN 
 ## Limitations
 
 - **Les grades (QA) sont approximatifs.** Numista ne fournit pas d'information sur l'état de conservation des pièces dans les fichiers d'échange. L'outil utilise par défaut le grade le plus bas connu pour chaque pièce. Vous devez vérifier et ajuster manuellement la colonne QA selon l'état réel de chaque pièce — cela affecte directement le prix estimé.
+- **Toutes les langues ne sont pas prises en charge.** Le rapport Excel est disponible en 11 langues (voir la liste ci-dessus). Si un code de langue non supporté est fourni, le rapport est généré en anglais par défaut.
 
 ## Conseils
 
