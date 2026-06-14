@@ -1,13 +1,15 @@
 import ExcelJS from "exceljs";
 import path from "path";
-import type { EvaluationReport, CoinWithPrices, Grade } from "../types/index.js";
+import type { EvaluationReport, CoinWithPrices } from "../types/index.js";
+import { GRADE_ORDER } from "../types/index.js";
 import { t, type I18nStrings } from "../i18n.js";
+import { fetchExchangeRates } from "../currency.js";
+import { DEFAULT_WEIGHTS, VERDICT_THRESHOLDS } from "../fairness.js";
 
-// ── Grade mapping ──────────────────────────────────────────────────────
-
-const GRADE_TO_QUALITY_SCORE: Record<Grade, number> = {
-  g: 1, vg: 2, f: 3, vf: 4, xf: 5, au: 6, unc: 7,
-};
+/** Une émission peu fiable (confiance faible, ambiguë ou probable épreuve) → ligne à vérifier. */
+function isDoubtful(coin: CoinWithPrices): boolean {
+  return coin.confidence === "low" || coin.confidence === "none" || coin.ambiguous || coin.qualityGuess === "proof";
+}
 
 // ── Palette ────────────────────────────────────────────────────────────
 
@@ -66,6 +68,7 @@ const BILAN = {
   given: 9,       // I
   difference: 10, // J
   percent: 11,    // K
+  weight: 12,     // L — poids éditable de chaque indice
 } as const;
 
 // ── Column widths (A → T) ─────────────────────────────────────────────
@@ -217,8 +220,10 @@ function writeCoinRows(
   backgroundColor: string,
   conversionStartRow: number,
   conversionEndRow: number,
+  dict: I18nStrings,
 ): number {
   let currentRow = startRow;
+  const qualityDropdown = `"${GRADE_ORDER.map((_, i) => i + 1).join(",")}"`;
   const borderStyle: Partial<ExcelJS.Borders> = {
     bottom: { style: "hair", color: { argb: COLORS.border } },
   };
@@ -247,9 +252,15 @@ function writeCoinRows(
     );
     excelRow.getCell(COL.convertedValue).numFmt = "#,##0.00";
 
-    const pricesByGrade = coin.allPrices.map(p => p.toFixed(3)).join(",");
+    // Prix : si aucun grade saisi (QA vide), on retient une estimation prudente
+    // (le grade le plus bas dispo) plutôt que 0, pour que le prix compte dans le verdict.
+    // Les grades NON COTÉS par l'API (valeur 0) retombent aussi sur ce repli : choisir
+    // un tel grade dans le dropdown QA ne fait donc plus chuter le prix à 0.
+    const fallbackPrice = coin.price ?? 0;
+    const pricesByGrade = coin.allPrices.map(p => (p > 0 ? p : fallbackPrice).toFixed(3)).join(",");
+    const priceFallback = fallbackPrice.toFixed(3);
     excelRow.getCell(COL.price).value = formula(
-      `IFERROR(IF(L${currentRow}="",0,CHOOSE(L${currentRow},${pricesByGrade})),0)`
+      `IFERROR(IF(L${currentRow}="",${priceFallback},CHOOSE(L${currentRow},${pricesByGrade})),0)`
     );
     excelRow.getCell(COL.price).numFmt = "#,##0.00";
 
@@ -260,11 +271,14 @@ function writeCoinRows(
       `IF(J${currentRow}="","",IF(J${currentRow}>100000000,1,IF(J${currentRow}>10000000,3,IF(J${currentRow}>1000000,5,IF(J${currentRow}>100000,7,9)))))`
     );
 
-    excelRow.getCell(COL.quality).value = coin.priceGrade ? GRADE_TO_QUALITY_SCORE[coin.priceGrade] : null;
+    // QA toujours vide : le grade se saisit manuellement (les prix se calculent
+    // ensuite via CHOOSE). On ne devine aucun grade par défaut.
+    const doubtful = isDoubtful(coin);
+    excelRow.getCell(COL.quality).value = null;
     excelRow.getCell(COL.quality).dataValidation = {
       type: "list",
       allowBlank: true,
-      formulae: ['"1,2,3,4,5,6,7"'],
+      formulae: [qualityDropdown],
     };
 
     excelRow.getCell(COL.reference).value = coin.raw.refKM || "";
@@ -283,6 +297,23 @@ function writeCoinRows(
       cell.alignment = { vertical: "middle" };
       cell.border = borderStyle;
     });
+
+    // Signalement discret des cas à vérifier (sans nouvelle colonne).
+    if (coin.confidence !== "high" && coin.raw.typeId) {
+      const noteLines: string[] = [];
+      if (coin.matchReason) noteLines.push(`${dict.flags.uncertain} : ${coin.matchReason}`);
+      if (coin.qualityGuess === "proof") noteLines.push(`⚠ ${dict.flags.probableProof}`);
+      if (coin.ambiguous) noteLines.push(`⚠ ${dict.flags.ambiguous}`);
+      if (noteLines.length) excelRow.getCell(COL.numistaId).note = noteLines.join("\n");
+    }
+    if (doubtful) {
+      excelRow.getCell(COL.numistaId).fill = solidFill(COLORS.subtotalBackground);
+      excelRow.getCell(COL.numistaId).border = { ...borderStyle, left: { style: "thick", color: { argb: COLORS.gold } } };
+    }
+    // Prix nul sur une pièce incluse = donnée manquante → signal rouge.
+    if (coin.price == null && coin.raw.selected) {
+      excelRow.getCell(COL.price).font = { size: 10, color: { argb: COLORS.verdictUnbalanced }, bold: true };
+    }
 
     currentRow++;
   }
@@ -338,12 +369,36 @@ function writeVerdict(
   const colReceived = columnLetter(BILAN.received);
   const colDiff = columnLetter(BILAN.difference);
   const colPct = columnLetter(BILAN.percent);
+  const colW = columnLetter(BILAN.weight);
+  const colGiven = columnLetter(BILAN.given);
+
+  // Les 4 indices : prix, nominal, tirage, qualité (lignes consécutives).
+  const p = priceRowNumber, n = priceRowNumber + 1, t = priceRowNumber + 2, q = priceRowNumber + 3;
+  // Numérateur : somme (poids × écart de FAVEUR). La ligne Tirage porte déjà son écart
+  // inversé (cf. writeLine `invert`), donc on l'ADDITIONNE comme les trois autres indices.
+  const num = `(${colW}${p}*${colPct}${p}+${colW}${n}*${colPct}${n}+${colW}${t}*${colPct}${t}+${colW}${q}*${colPct}${q})`;
+  // Dénominateur : poids des seules dimensions RÉELLEMENT chiffrées (côté « donné »
+  // numérique et > 0) → renormalisation. Exclut p.ex. la qualité quand la QA est vide.
+  const present = (r: number) => `IF(AND(ISNUMBER(${colGiven}${r}),${colGiven}${r}>0),${colW}${r},0)`;
+  const den = `(${present(p)}+${present(n)}+${present(t)}+${present(q)})`;
+  const scoreFormula = `IFERROR(${num}/${den},"")`;
+  const scoreRef = `${colPct}${verdictRowNumber}`;
 
   const verdictRow = worksheet.getRow(verdictRowNumber);
   verdictRow.getCell(BILAN.label).value = dict.verdict.label;
   verdictRow.getCell(BILAN.label).font = boldFont(12);
+
+  // Score pondéré visible, juste sous la colonne Écart %.
+  verdictRow.getCell(BILAN.difference).value = `${dict.flags.weightedScore} →`;
+  verdictRow.getCell(BILAN.difference).font = { italic: true, size: 9, color: { argb: COLORS.subtitle } };
+  verdictRow.getCell(BILAN.difference).alignment = { horizontal: "right" };
+  verdictRow.getCell(BILAN.percent).value = formula(scoreFormula);
+  verdictRow.getCell(BILAN.percent).numFmt = "+0.0;-0.0;0.0";
+  verdictRow.getCell(BILAN.percent).font = boldFont();
+
+  // Verdict = seuils PARTAGÉS appliqués au score pondéré (mêmes valeurs que le terminal).
   verdictRow.getCell(BILAN.received).value = formula(
-    `IF(ABS(${colPct}${priceRowNumber})<=10,"${dict.verdict.fair}",IF(ABS(${colPct}${priceRowNumber})<=25,"${dict.verdict.acceptable}","${dict.verdict.unbalanced}"))`
+    `IF(${scoreRef}="","${dict.verdict.indeterminate}",IF(ABS(${scoreRef})<=${VERDICT_THRESHOLDS.fair},"${dict.verdict.fair}",IF(ABS(${scoreRef})<=${VERDICT_THRESHOLDS.acceptable},"${dict.verdict.acceptable}","${dict.verdict.unbalanced}")))`
   );
   verdictRow.getCell(BILAN.received).font = boldFont(14);
 
@@ -353,6 +408,7 @@ function writeVerdict(
       { type: "containsText", operator: "containsText", text: dict.verdict.fair, style: { font: { color: { argb: COLORS.verdictFair } } }, priority: 1 },
       { type: "containsText", operator: "containsText", text: dict.verdict.acceptable, style: { font: { color: { argb: COLORS.verdictAcceptable } } }, priority: 2 },
       { type: "containsText", operator: "containsText", text: dict.verdict.unbalanced, style: { font: { color: { argb: COLORS.verdictUnbalanced } } }, priority: 3 },
+      { type: "containsText", operator: "containsText", text: dict.verdict.indeterminate, style: { font: { color: { argb: COLORS.grey } } }, priority: 4 },
     ],
   });
 
@@ -381,6 +437,7 @@ function writeBilan(
   given: SectionLayout,
   currency: string,
   dict: I18nStrings,
+  toVerifyCount: number,
 ): void {
   const bilanFill = solidFill(COLORS.subtotalBackground);
   const bilanBorder: Partial<ExcelJS.Borders> = { bottom: { style: "thin", color: { argb: COLORS.border } } };
@@ -400,6 +457,8 @@ function writeBilan(
   bilanHeaderRow.getCell(BILAN.difference).font = boldFont();
   bilanHeaderRow.getCell(BILAN.percent).value = dict.bilan.gap;
   bilanHeaderRow.getCell(BILAN.percent).font = boldFont();
+  bilanHeaderRow.getCell(BILAN.weight).value = dict.flags.weight;
+  bilanHeaderRow.getCell(BILAN.weight).font = { bold: true, size: 10, color: { argb: COLORS.gold } };
   bilanHeaderRow.eachCell((cell) => {
     cell.fill = bilanFill;
     cell.border = bilanBorder;
@@ -416,6 +475,10 @@ function writeBilan(
     givenFormula: string,
     numFmt: string,
     labelFont?: Partial<ExcelJS.Font>,
+    currencyDiff = true,
+    weight?: number,
+    weightNote?: string,
+    invert = false,
   ) => {
     const excelRow = worksheet.getRow(currentRow);
     excelRow.getCell(BILAN.label).value = label;
@@ -424,50 +487,78 @@ function writeBilan(
     excelRow.getCell(BILAN.received).numFmt = numFmt;
     excelRow.getCell(BILAN.given).value = formula(givenFormula);
     excelRow.getCell(BILAN.given).numFmt = numFmt;
-    excelRow.getCell(BILAN.difference).value = formula(`${colReceived}${currentRow}-${colGiven}${currentRow}`);
-    excelRow.getCell(BILAN.difference).numFmt = numFmt.includes("#") ? `+${numFmt}" ${currency}";-${numFmt}" ${currency}"` : "+0.0;-0.0";
+    // « invert » (tirage) : Diff et Écart % sont présentés du point de vue de la FAVEUR
+    // (recevoir plus de tirage = pièces plus communes = défavorable). Le signe affiché
+    // colle alors au verdict et à la couleur (vert = en ma faveur, rouge = défavorable).
+    const diffExpr = invert
+      ? `${colGiven}${currentRow}-${colReceived}${currentRow}`
+      : `${colReceived}${currentRow}-${colGiven}${currentRow}`;
+    excelRow.getCell(BILAN.difference).value = formula(diffExpr);
+    excelRow.getCell(BILAN.difference).numFmt = !currencyDiff
+      ? `+${numFmt};-${numFmt}`
+      : numFmt.includes("#") ? `+${numFmt}" ${currency}";-${numFmt}" ${currency}"` : "+0.0;-0.0";
     excelRow.getCell(BILAN.percent).value = formula(
-      `IFERROR(IF(${colGiven}${currentRow}=0,0,(${colReceived}${currentRow}-${colGiven}${currentRow})/${colGiven}${currentRow}*100),0)`
+      `IFERROR(IF(${colGiven}${currentRow}=0,0,(${diffExpr})/${colGiven}${currentRow}*100),0)`
     );
     excelRow.getCell(BILAN.percent).numFmt = `+0.0"%";-0.0"%"`;
     excelRow.eachCell((cell, colNumber) => {
       if (colNumber !== BILAN.percent) cell.fill = bilanFill;
       cell.border = bilanBorder;
     });
+    // Poids éditable (cellule blanche encadrée d'or)
+    if (weight != null) {
+      const wCell = excelRow.getCell(BILAN.weight);
+      wCell.value = weight;
+      wCell.numFmt = "0";
+      wCell.alignment = { horizontal: "center", vertical: "middle" };
+      wCell.font = boldFont();
+      wCell.fill = solidFill(COLORS.white);
+      const gold = { style: "thin" as const, color: { argb: COLORS.gold } };
+      wCell.border = { top: gold, bottom: gold, left: gold, right: gold };
+      if (weightNote) wCell.note = weightNote;
+    }
     currentRow++;
   };
 
   const priceRow = currentRow;
-  writeLine(`${dict.bilan.price} (${currency})`, `I${received.totalRow}`, `I${given.totalRow}`, "#,##0.00");
+  writeLine(
+    `${dict.bilan.price} (${currency})`, `I${received.totalRow}`, `I${given.totalRow}`, "#,##0.00",
+    undefined, true, DEFAULT_WEIGHTS.price,
+  );
   writeLine(
     `${dict.bilan.nominalConverted} (${currency})`, `H${received.totalRow}`, `H${given.totalRow}`, "#,##0.00",
-    { bold: true, size: 10, color: { argb: COLORS.gold } },
+    { bold: true, size: 10, color: { argb: COLORS.gold } }, true, DEFAULT_WEIGHTS.nominal,
   );
-  writeLine(`${dict.bilan.avgRarity} (/10)`, `K${received.totalRow}`, `K${given.totalRow}`, "0.0");
+  writeLine(
+    dict.headers.mintage,
+    `SUMIF(N${received.dataStartRow}:N${received.dataEndRow},"✓",J${received.dataStartRow}:J${received.dataEndRow})`,
+    `SUMIF(N${given.dataStartRow}:N${given.dataEndRow},"✓",J${given.dataStartRow}:J${given.dataEndRow})`,
+    "#,##0",
+    undefined,
+    false,
+    DEFAULT_WEIGHTS.mintage,
+    dict.flags.mintageNote,
+    true, // tirage inversé : recevoir plus de tirage est défavorable
+  );
   writeLine(
     `${dict.bilan.avgQuality} (/7)`,
     `IFERROR(AVERAGEIF(N${received.dataStartRow}:N${received.dataEndRow},"✓",L${received.dataStartRow}:L${received.dataEndRow}),"—")`,
     `IFERROR(AVERAGEIF(N${given.dataStartRow}:N${given.dataEndRow},"✓",L${given.dataStartRow}:L${given.dataEndRow}),"—")`,
     "0.0",
+    undefined, true, DEFAULT_WEIGHTS.quality,
   );
 
   currentRow++;
   writeVerdict(worksheet, currentRow, priceRow, dict);
-}
 
-// ── Currency rates ─────────────────────────────────────────────────────
-
-async function fetchExchangeRates(targetCurrency: string): Promise<Record<string, number>> {
-  try {
-    const base = targetCurrency.toLowerCase();
-    const res = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${base}.json`);
-    if (!res.ok) return {};
-    const data = await res.json() as Record<string, any>;
-    return data[base] ?? {};
-  } catch {
-    return {};
+  if (toVerifyCount > 0) {
+    currentRow += 2;
+    const noteCell = worksheet.getRow(currentRow).getCell(BILAN.label);
+    noteCell.value = `⚠ ${dict.flags.toVerify} : ${toVerifyCount}`;
+    noteCell.font = { italic: true, size: 9, color: { argb: COLORS.gold } };
   }
 }
+
 
 // ── Title parser ───────────────────────────────────────────────────────
 
@@ -542,7 +633,7 @@ export async function generateExcelReport(
   let currentRow = 5;
 
   const receivedStartRow = currentRow;
-  currentRow = writeCoinRows(worksheet, report.demanded.coins, currentRow, COLORS.receivedBackground, conversionRange.startRow, conversionRange.endRow);
+  currentRow = writeCoinRows(worksheet, report.demanded.coins, currentRow, COLORS.receivedBackground, conversionRange.startRow, conversionRange.endRow, dict);
   const receivedEndRow = currentRow - 1;
   const receivedTotalRow = currentRow;
   currentRow = writeSectionTotals(worksheet, currentRow, dict.sections.totalReceived, receivedStartRow, receivedEndRow);
@@ -553,13 +644,14 @@ export async function generateExcelReport(
   currentRow++;
 
   const givenStartRow = currentRow;
-  currentRow = writeCoinRows(worksheet, report.offered.coins, currentRow, COLORS.givenBackground, conversionRange.startRow, conversionRange.endRow);
+  currentRow = writeCoinRows(worksheet, report.offered.coins, currentRow, COLORS.givenBackground, conversionRange.startRow, conversionRange.endRow, dict);
   const givenEndRow = currentRow - 1;
   const givenTotalRow = currentRow;
   currentRow = writeSectionTotals(worksheet, currentRow, dict.sections.totalGiven, givenStartRow, givenEndRow);
   currentRow += 2;
 
   // Bilan
+  const toVerifyCount = allCoins.filter((c) => c.raw.selected && c.confidence !== "high").length;
   writeBilan(
     worksheet,
     currentRow,
@@ -567,6 +659,7 @@ export async function generateExcelReport(
     { totalRow: givenTotalRow, dataStartRow: givenStartRow, dataEndRow: givenEndRow },
     currency,
     dict,
+    toVerifyCount,
   );
 
   // Save
