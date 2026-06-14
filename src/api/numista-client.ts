@@ -3,6 +3,14 @@ import type { NumistaIssue, NumistaPriceResponse, NumistaType } from "../types/i
 const API_BASE = "https://api.numista.com/v3";
 const RATE_LIMIT_MS = 250;
 
+/** Levée quand l'API renvoie 429 : le quota mensuel est atteint, il faut arrêter. */
+export class QuotaExceededError extends Error {
+  constructor() {
+    super("Quota API Numista atteint (429)");
+    this.name = "QuotaExceededError";
+  }
+}
+
 export class NumistaClient {
   private apiKey: string;
   private lang = "fr";
@@ -32,9 +40,10 @@ export class NumistaClient {
     });
 
     if (!res.ok) {
-      if (res.status === 429) {
-        console.error("  ⚠ Quota API atteint (429). Arrêt.");
-      }
+      if (res.status === 429) throw new QuotaExceededError();
+      // Erreur serveur (5xx) = panne transitoire → on lève pour la distinguer d'une
+      // absence réelle de données (4xx → null) ; l'évaluateur l'isole par pièce.
+      if (res.status >= 500) throw new Error(`Erreur serveur Numista (${res.status})`);
       return null;
     }
 
@@ -54,26 +63,5 @@ export class NumistaClient {
     return this.request<NumistaPriceResponse>(
       `/types/${typeId}/issues/${issueId}/prices?currency=${currency}`,
     );
-  }
-
-  findBestIssue(issues: NumistaIssue[], year: number, mintMark: string): NumistaIssue | null {
-    if (issues.length === 0) return null;
-
-    for (const issue of issues) {
-      const issueYear = issue.gregorian_year ?? issue.year ?? 0;
-      const issueMint = issue.mint_letter ?? "";
-      if (issueYear === year && (!mintMark || issueMint === mintMark)) {
-        return issue;
-      }
-    }
-
-    for (const issue of issues) {
-      const issueYear = issue.gregorian_year ?? issue.year ?? 0;
-      if (issueYear === year) {
-        return issue;
-      }
-    }
-
-    return issues[0];
   }
 }
