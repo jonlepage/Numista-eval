@@ -1,16 +1,19 @@
 import XLSXChart from "xlsx-chart";
 import path from "path";
 import type { EvaluationReport } from "../types/index.js";
+import { t } from "../i18n.js";
 
 export async function generateChartReport(
   report: EvaluationReport,
   outputDir: string,
+  lang = "fr",
 ): Promise<string> {
   const { currency } = report;
+  const dict = t(lang);
 
   const datestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-  const safeName = report.title.replace(/[^a-zA-Z0-9àâéèêëïîôùûçÀÂÉÈÊËÏÎÔÙÛÇ\s-]/g, "").trim().replace(/\s+/g, "_");
-  const filename = `${safeName}_${datestamp}_graphique.xlsx`;
+  const safeName = report.title.replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s+/g, "_");
+  const filename = `${safeName}_${datestamp}_chart.xlsx`;
   const outputPath = path.join(outputDir, filename);
 
   return new Promise((resolve, reject) => {
@@ -20,16 +23,16 @@ export async function generateChartReport(
       {
         file: outputPath,
         chart: "bar",
-        titles: ["Je reçois", "Je donne"],
-        fields: [`Prix marchand (${currency})`, "Rareté (/10)"],
+        titles: [dict.bilan.iReceive, dict.bilan.iGive],
+        fields: [`${dict.bilan.price} (${currency})`, `${dict.headers.rarity} (/10)`],
         data: {
-          "Je reçois": {
-            [`Prix marchand (${currency})`]: report.demanded.totalPrice,
-            "Rareté (/10)": report.demanded.avgRarity ?? 0,
+          [dict.bilan.iReceive]: {
+            [`${dict.bilan.price} (${currency})`]: report.demanded.totalPrice,
+            [`${dict.headers.rarity} (/10)`]: report.demanded.avgRarity ?? 0,
           },
-          "Je donne": {
-            [`Prix marchand (${currency})`]: report.offered.totalPrice,
-            "Rareté (/10)": report.offered.avgRarity ?? 0,
+          [dict.bilan.iGive]: {
+            [`${dict.bilan.price} (${currency})`]: report.offered.totalPrice,
+            [`${dict.headers.rarity} (/10)`]: report.offered.avgRarity ?? 0,
           },
         },
         chartTitle: report.title,

@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import path from "path";
 import type { EvaluationReport, CoinWithPrices, Grade } from "../types/index.js";
-import { t, type ExcelStrings } from "../i18n.js";
+import { t, type I18nStrings } from "../i18n.js";
 
 // ── Grade mapping ──────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ const COLUMN_WIDTHS = [
 
 // ── Header builder ─────────────────────────────────────────────────────
 
-function buildHeaders(dict: ExcelStrings): { label: string; color: string }[] {
+function buildHeaders(dict: I18nStrings): { label: string; color: string }[] {
   return [
     { label: "#",                        color: COLORS.grey },
     { label: dict.headers.name,          color: COLORS.grey },
@@ -141,7 +141,7 @@ async function writeConversionTable(
   worksheet: ExcelJS.Worksheet,
   coins: CoinWithPrices[],
   currency: string,
-  dict: ExcelStrings,
+  dict: I18nStrings,
 ): Promise<{ startRow: number; endRow: number }> {
   const uniqueCurrencies = [...new Set(coins.map(coin => coin.currencyCode).filter(Boolean))] as string[];
   if (!uniqueCurrencies.includes(currency)) uniqueCurrencies.unshift(currency);
@@ -178,7 +178,7 @@ async function writeConversionTable(
   return { startRow, endRow: startRow + uniqueCurrencies.length - 1 };
 }
 
-function writeGradeReferenceTable(worksheet: ExcelJS.Worksheet, dict: ExcelStrings): void {
+function writeGradeReferenceTable(worksheet: ExcelJS.Worksheet, dict: I18nStrings): void {
   const gradeHeaderRow = worksheet.getRow(3);
   gradeHeaderRow.getCell(GRADE_TABLE.score).value = dict.referenceTable.score;
   gradeHeaderRow.getCell(GRADE_TABLE.label).value = dict.referenceTable.grade;
@@ -333,7 +333,7 @@ function writeVerdict(
   worksheet: ExcelJS.Worksheet,
   verdictRowNumber: number,
   priceRowNumber: number,
-  dict: ExcelStrings,
+  dict: I18nStrings,
 ): void {
   const colReceived = columnLetter(BILAN.received);
   const colDiff = columnLetter(BILAN.difference);
@@ -380,7 +380,7 @@ function writeBilan(
   received: SectionLayout,
   given: SectionLayout,
   currency: string,
-  dict: ExcelStrings,
+  dict: I18nStrings,
 ): void {
   const bilanFill = solidFill(COLORS.subtotalBackground);
   const bilanBorder: Partial<ExcelJS.Borders> = { bottom: { style: "thin", color: { argb: COLORS.border } } };
@@ -477,13 +477,21 @@ interface ParsedTitle {
   name2: string;
 }
 
-function parseExchangeTitle(rawTitle: string): ParsedTitle | null {
-  const match = rawTitle.match(/[ÉEe]change\s+n°?\s*(\d+)\s*:\s*(.+?)\s*-\s*(.+)/i);
-  if (!match) return null;
-  return { exchangeNumber: match[1], name1: match[2].trim(), name2: match[3].trim() };
+export function parseExchangeTitle(rawTitle: string): ParsedTitle | null {
+  const withMarker = rawTitle.match(
+    /(?:n[°º.]?|#|№|Nr\.?)\s*(\d+)\s*:\s*(.+?)\s+-\s+(.+)/i,
+  );
+  if (withMarker) {
+    return { exchangeNumber: withMarker[1], name1: withMarker[2].trim(), name2: withMarker[3].trim() };
+  }
+  const generic = rawTitle.match(/(\d+)\s*:\s*(.+?)\s+-\s+(.+)/);
+  if (generic) {
+    return { exchangeNumber: generic[1], name1: generic[2].trim(), name2: generic[3].trim() };
+  }
+  return null;
 }
 
-function buildTitle(parsed: ParsedTitle, dict: ExcelStrings): string {
+function buildTitle(parsed: ParsedTitle, dict: I18nStrings): string {
   return dict.exchangeTitle
     .replace("{n}", parsed.exchangeNumber)
     .replace("{name1}", parsed.name1)
@@ -492,7 +500,7 @@ function buildTitle(parsed: ParsedTitle, dict: ExcelStrings): string {
 
 function buildFilename(parsed: ParsedTitle | null, datestamp: string): string {
   if (!parsed) return `numista-eval_${datestamp}`;
-  const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9àâéèêëïîôùûüçñáíóúãõäöüßÀÂÉÈÊËÏÎÔÙÛÜÇÑÁÍÓÚÃÕÄÖÜ-]/g, "").replace(/\s+/g, "-");
+  const sanitize = (s: string) => s.replace(/[^\p{L}\p{N}-]/gu, "").replace(/\s+/g, "-");
   return `${sanitize(parsed.name1)}_${sanitize(parsed.name2)}_${parsed.exchangeNumber}_${datestamp}`;
 }
 

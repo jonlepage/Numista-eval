@@ -1,4 +1,4 @@
-export interface ExcelStrings {
+export interface I18nStrings {
   sheetName: string;
   exchangeTitle: string;
   headers: {
@@ -41,11 +41,42 @@ export interface ExcelStrings {
     unbalanced: string;
   };
   gradeLabels: string[];
+  terminal: {
+    iReceive: string;
+    iGive: string;
+    bilanTitle: string;
+    merchantPrice: string;
+    received: string;
+    given: string;
+    balance: string;
+    avgRarity: string;
+    noPrice: string;
+    apiCalls: string;
+    currency: string;
+  };
+  cli: {
+    readingFile: string;
+    queryingApi: string;
+    coinsFound: string;
+    reportExcel: string;
+    reportChart: string;
+    errorNoKey: string;
+  };
 }
 
 export type Locale = "fr" | "en" | "es" | "de" | "pt" | "it" | "nl" | "el" | "ru" | "zh" | "ja";
 
-const DICTIONARIES: Record<Locale, ExcelStrings> = {
+const LOCALE_TO_BCP47: Record<Locale, string> = {
+  fr: "fr-CA", en: "en-US", de: "de-DE", es: "es-ES",
+  pt: "pt-BR", it: "it-IT", nl: "nl-NL", el: "el-GR",
+  ru: "ru-RU", zh: "zh-CN", ja: "ja-JP",
+};
+
+export function bcp47(lang: string): string {
+  return LOCALE_TO_BCP47[lang as Locale] ?? "en-US";
+}
+
+const DICTIONARIES: Record<Locale, I18nStrings> = {
   fr: {
     sheetName: "Évaluation",
     exchangeTitle: "Échange n°{n} : {name1} – {name2}",
@@ -90,6 +121,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "DÉSÉQUILIBRÉ",
     },
     gradeLabels: ["AB", "B", "TB", "TTB", "SUP", "SPL", "FDC"],
+    terminal: {
+      iReceive: "JE REÇOIS",
+      iGive: "JE DONNE",
+      bilanTitle: "BILAN",
+      merchantPrice: "Prix marchand :",
+      received: "Reçu  :",
+      given: "Donné :",
+      balance: "Balance",
+      avgRarity: "Rareté moyenne :",
+      noPrice: "{n} pièce(s) sans prix — marquées \"—\"",
+      apiCalls: "API : {n} / 2000 appels",
+      currency: "Devise",
+    },
+    cli: {
+      readingFile: "Lecture du fichier XLS...",
+      queryingApi: "Interrogation de l'API Numista...",
+      coinsFound: "{demanded} pièces demandées, {offered} offertes",
+      reportExcel: "Rapport Excel",
+      reportChart: "Graphique",
+      errorNoKey: "Erreur : clé API manquante.",
+    },
   },
 
   en: {
@@ -136,6 +188,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "UNBALANCED",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "I RECEIVE",
+      iGive: "I GIVE",
+      bilanTitle: "SUMMARY",
+      merchantPrice: "Market price:",
+      received: "Received:",
+      given: "Given:",
+      balance: "Balance",
+      avgRarity: "Avg. rarity:",
+      noPrice: "{n} coin(s) without price — marked \"—\"",
+      apiCalls: "API: {n} / 2000 calls",
+      currency: "Currency",
+    },
+    cli: {
+      readingFile: "Reading XLS file...",
+      queryingApi: "Querying Numista API...",
+      coinsFound: "{demanded} coins requested, {offered} offered",
+      reportExcel: "Excel report",
+      reportChart: "Chart",
+      errorNoKey: "Error: API key missing.",
+    },
   },
 
   de: {
@@ -182,6 +255,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "UNAUSGEGLICHEN",
     },
     gradeLabels: ["GE", "SGE", "S", "SS", "VZ", "UNZ", "St"],
+    terminal: {
+      iReceive: "ICH ERHALTE",
+      iGive: "ICH GEBE",
+      bilanTitle: "BILANZ",
+      merchantPrice: "Marktpreis:",
+      received: "Erhalten:",
+      given: "Gegeben:",
+      balance: "Saldo",
+      avgRarity: "Ø Seltenheit:",
+      noPrice: "{n} Münze(n) ohne Preis — mit \"—\" markiert",
+      apiCalls: "API: {n} / 2000 Aufrufe",
+      currency: "Währung",
+    },
+    cli: {
+      readingFile: "XLS-Datei wird gelesen...",
+      queryingApi: "Numista-API wird abgefragt...",
+      coinsFound: "{demanded} angeforderte Münzen, {offered} angebotene",
+      reportExcel: "Excel-Bericht",
+      reportChart: "Diagramm",
+      errorNoKey: "Fehler: API-Schlüssel fehlt.",
+    },
   },
 
   es: {
@@ -228,6 +322,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "DESEQUILIBRADO",
     },
     gradeLabels: ["RC", "BC", "BC+", "MBC", "EBC", "SC", "FDC"],
+    terminal: {
+      iReceive: "RECIBO",
+      iGive: "DOY",
+      bilanTitle: "BALANCE",
+      merchantPrice: "Precio de mercado:",
+      received: "Recibido:",
+      given: "Dado:",
+      balance: "Balance",
+      avgRarity: "Rareza prom.:",
+      noPrice: "{n} moneda(s) sin precio — marcadas \"—\"",
+      apiCalls: "API: {n} / 2000 llamadas",
+      currency: "Moneda",
+    },
+    cli: {
+      readingFile: "Leyendo archivo XLS...",
+      queryingApi: "Consultando API Numista...",
+      coinsFound: "{demanded} monedas solicitadas, {offered} ofrecidas",
+      reportExcel: "Informe Excel",
+      reportChart: "Gráfico",
+      errorNoKey: "Error: falta la clave API.",
+    },
   },
 
   pt: {
@@ -274,6 +389,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "DESEQUILIBRADO",
     },
     gradeLabels: ["REG", "BC", "MBC", "MBC+", "SOB", "BELA", "FDC"],
+    terminal: {
+      iReceive: "RECEBO",
+      iGive: "DOU",
+      bilanTitle: "BALANÇO",
+      merchantPrice: "Preço de mercado:",
+      received: "Recebido:",
+      given: "Dado:",
+      balance: "Saldo",
+      avgRarity: "Raridade méd.:",
+      noPrice: "{n} moeda(s) sem preço — marcadas \"—\"",
+      apiCalls: "API: {n} / 2000 chamadas",
+      currency: "Moeda",
+    },
+    cli: {
+      readingFile: "Lendo arquivo XLS...",
+      queryingApi: "Consultando API Numista...",
+      coinsFound: "{demanded} moedas solicitadas, {offered} oferecidas",
+      reportExcel: "Relatório Excel",
+      reportChart: "Gráfico",
+      errorNoKey: "Erro: chave API ausente.",
+    },
   },
 
   it: {
@@ -320,6 +456,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "SBILANCIATO",
     },
     gradeLabels: ["M", "B", "MB", "BB", "SPL", "qFDC", "FDC"],
+    terminal: {
+      iReceive: "RICEVO",
+      iGive: "DO",
+      bilanTitle: "BILANCIO",
+      merchantPrice: "Prezzo di mercato:",
+      received: "Ricevuto:",
+      given: "Dato:",
+      balance: "Saldo",
+      avgRarity: "Rarità med.:",
+      noPrice: "{n} moneta/e senza prezzo — contrassegnate \"—\"",
+      apiCalls: "API: {n} / 2000 chiamate",
+      currency: "Valuta",
+    },
+    cli: {
+      readingFile: "Lettura file XLS...",
+      queryingApi: "Interrogazione API Numista...",
+      coinsFound: "{demanded} monete richieste, {offered} offerte",
+      reportExcel: "Rapporto Excel",
+      reportChart: "Grafico",
+      errorNoKey: "Errore: chiave API mancante.",
+    },
   },
 
   nl: {
@@ -366,6 +523,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "ONEVENWICHTIG",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "IK ONTVANG",
+      iGive: "IK GEEF",
+      bilanTitle: "OVERZICHT",
+      merchantPrice: "Marktprijs:",
+      received: "Ontvangen:",
+      given: "Gegeven:",
+      balance: "Saldo",
+      avgRarity: "Gem. zeldzaamh.:",
+      noPrice: "{n} munt(en) zonder prijs — gemarkeerd \"—\"",
+      apiCalls: "API: {n} / 2000 oproepen",
+      currency: "Valuta",
+    },
+    cli: {
+      readingFile: "XLS-bestand wordt gelezen...",
+      queryingApi: "Numista-API wordt bevraagd...",
+      coinsFound: "{demanded} gevraagde munten, {offered} aangeboden",
+      reportExcel: "Excel-rapport",
+      reportChart: "Grafiek",
+      errorNoKey: "Fout: API-sleutel ontbreekt.",
+    },
   },
 
   el: {
@@ -412,6 +590,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "ΑΝΙΣΟΡΡΟΠΟ",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "ΛΑΜΒΑΝΩ",
+      iGive: "ΔΙΝΩ",
+      bilanTitle: "ΙΣΟΖΥΓΙΟ",
+      merchantPrice: "Τιμή αγοράς:",
+      received: "Λήψη:",
+      given: "Δόση:",
+      balance: "Υπόλοιπο",
+      avgRarity: "Μέση σπανιότ.:",
+      noPrice: "{n} νόμισμα(τα) χωρίς τιμή — σημειωμένα \"—\"",
+      apiCalls: "API: {n} / 2000 κλήσεις",
+      currency: "Νόμισμα",
+    },
+    cli: {
+      readingFile: "Ανάγνωση αρχείου XLS...",
+      queryingApi: "Ερώτηση API Numista...",
+      coinsFound: "{demanded} ζητούμενα νομίσματα, {offered} προσφερόμενα",
+      reportExcel: "Αναφορά Excel",
+      reportChart: "Γράφημα",
+      errorNoKey: "Σφάλμα: λείπει το κλειδί API.",
+    },
   },
 
   ru: {
@@ -458,6 +657,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "НЕРАВНОЦЕННО",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "ПОЛУЧАЮ",
+      iGive: "ОТДАЮ",
+      bilanTitle: "БАЛАНС",
+      merchantPrice: "Рыночная цена:",
+      received: "Получено:",
+      given: "Отдано:",
+      balance: "Баланс",
+      avgRarity: "Ср. редкость:",
+      noPrice: "{n} монет(а) без цены — отмечены \"—\"",
+      apiCalls: "API: {n} / 2000 вызовов",
+      currency: "Валюта",
+    },
+    cli: {
+      readingFile: "Чтение файла XLS...",
+      queryingApi: "Запрос к API Numista...",
+      coinsFound: "{demanded} запрошенных монет, {offered} предложенных",
+      reportExcel: "Отчёт Excel",
+      reportChart: "График",
+      errorNoKey: "Ошибка: отсутствует ключ API.",
+    },
   },
 
   zh: {
@@ -504,6 +724,27 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "不平衡",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "收到",
+      iGive: "付出",
+      bilanTitle: "总结",
+      merchantPrice: "市场价格：",
+      received: "收到：",
+      given: "付出：",
+      balance: "余额",
+      avgRarity: "平均稀有度：",
+      noPrice: "{n} 枚硬币无价格——标记为\"—\"",
+      apiCalls: "API：{n} / 2000 次调用",
+      currency: "货币",
+    },
+    cli: {
+      readingFile: "正在读取XLS文件...",
+      queryingApi: "正在查询Numista API...",
+      coinsFound: "{demanded} 枚请求硬币，{offered} 枚提供",
+      reportExcel: "Excel报告",
+      reportChart: "图表",
+      errorNoKey: "错误：缺少API密钥。",
+    },
   },
 
   ja: {
@@ -550,9 +791,30 @@ const DICTIONARIES: Record<Locale, ExcelStrings> = {
       unbalanced: "不均衡",
     },
     gradeLabels: ["AG", "G", "F", "VF", "XF", "AU", "UNC"],
+    terminal: {
+      iReceive: "受取",
+      iGive: "提供",
+      bilanTitle: "概要",
+      merchantPrice: "市場価格：",
+      received: "受取：",
+      given: "提供：",
+      balance: "残高",
+      avgRarity: "平均希少度：",
+      noPrice: "{n} 枚の硬貨に価格なし——\"—\"と表示",
+      apiCalls: "API：{n} / 2000 呼び出し",
+      currency: "通貨",
+    },
+    cli: {
+      readingFile: "XLSファイルを読み込み中...",
+      queryingApi: "Numista APIに問い合わせ中...",
+      coinsFound: "リクエスト {demanded} 枚、提供 {offered} 枚",
+      reportExcel: "Excelレポート",
+      reportChart: "チャート",
+      errorNoKey: "エラー：APIキーがありません。",
+    },
   },
 };
 
-export function t(lang: string): ExcelStrings {
+export function t(lang: string): I18nStrings {
   return DICTIONARIES[lang as Locale] ?? DICTIONARIES.en;
 }

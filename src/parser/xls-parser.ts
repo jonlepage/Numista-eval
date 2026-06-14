@@ -1,7 +1,7 @@
 import CFB from "cfb";
 import type { ParsedExchange, RawCoin } from "../types/index.js";
 
-interface CellMap {
+export interface CellMap {
   [row: number]: { [col: number]: string | number };
 }
 
@@ -66,13 +66,77 @@ function parseWorkbookBIFF(buffer: Buffer): CellMap {
 }
 
 function extractTypeId(ref: string): number | null {
-  const normalized = ref.replace(/\u202f/g, " ");
+  const normalized = ref.replace(/ /g, " ");
   const match = normalized.match(/N#\s*(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }
 
-function isHeaderRow(cell0: string): boolean {
-  return /^[ÉEe]metteur$/i.test(cell0) || /change n/i.test(cell0) || /^R[ée]f[ée]rence$/i.test(cell0);
+export function isDataRow(row: { [col: number]: string | number }): boolean {
+  if (typeof row[4] === "number") return true;
+  const ref = row[2] != null ? String(row[2]) : "";
+  return extractTypeId(ref) !== null;
+}
+
+function buildCoin(row: { [col: number]: string | number }, section: "demand" | "offer"): RawCoin {
+  const cell0 = row[0] != null ? String(row[0]) : "";
+  const refN = row[2] != null ? String(row[2]) : "";
+  const yearRaw = row[4];
+  const year = typeof yearRaw === "number" ? Math.floor(yearRaw) : 0;
+
+  const myProposition = row[6] != null ? String(row[6]).trim().toLowerCase() : "";
+  const theirProposition = row[7] != null ? String(row[7]).trim().toLowerCase() : "";
+
+  return {
+    issuer: cell0,
+    refKM: row[1] != null ? String(row[1]) : "",
+    typeId: extractTypeId(refN),
+    title: row[3] != null ? String(row[3]) : "",
+    year,
+    mintMark: row[5] != null ? String(row[5]) : "",
+    selected: section === "demand" ? myProposition === "x" : theirProposition === "x",
+  };
+}
+
+type ParserState = "BEFORE_FIRST" | "DEMANDED" | "GAP" | "OFFERED" | "DONE";
+
+export function extractSections(rows: CellMap): ParsedExchange {
+  const sortedKeys = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  const title = rows[0]?.[0] != null ? String(rows[0][0]) : "";
+  const demanded: RawCoin[] = [];
+  const offered: RawCoin[] = [];
+  let state: ParserState = "BEFORE_FIRST";
+
+  for (const rowIdx of sortedKeys) {
+    const row = rows[rowIdx];
+    if (!row) continue;
+
+    if (!isDataRow(row)) {
+      if (state === "DEMANDED") state = "GAP";
+      else if (state === "OFFERED") state = "DONE";
+      continue;
+    }
+
+    switch (state) {
+      case "BEFORE_FIRST":
+        state = "DEMANDED";
+        demanded.push(buildCoin(row, "demand"));
+        break;
+      case "DEMANDED":
+        demanded.push(buildCoin(row, "demand"));
+        break;
+      case "GAP":
+        state = "OFFERED";
+        offered.push(buildCoin(row, "offer"));
+        break;
+      case "OFFERED":
+        offered.push(buildCoin(row, "offer"));
+        break;
+      case "DONE":
+        break;
+    }
+  }
+
+  return { title, demanded, offered };
 }
 
 export function parseNumistaXls(filePath: string): ParsedExchange {
@@ -84,53 +148,5 @@ export function parseNumistaXls(filePath: string): ParsedExchange {
   }
 
   const rows = parseWorkbookBIFF(Buffer.from(entry.content));
-  const sortedKeys = Object.keys(rows).map(Number).sort((a, b) => a - b);
-
-  const title = rows[0]?.[0] != null ? String(rows[0][0]) : "";
-  const demanded: RawCoin[] = [];
-  const offered: RawCoin[] = [];
-  let currentSection: "demand" | "offer" | null = null;
-
-  for (const rowIdx of sortedKeys) {
-    const row = rows[rowIdx];
-    const cell0 = row[0] != null ? String(row[0]) : "";
-
-    if (/que je demande/i.test(cell0)) {
-      currentSection = "demand";
-      continue;
-    }
-    if (/que je donne/i.test(cell0)) {
-      currentSection = "offer";
-      continue;
-    }
-    if (cell0 === "TOTAL :" || !cell0.trim() || isHeaderRow(cell0)) {
-      continue;
-    }
-    if (!currentSection) continue;
-
-    const refN = row[2] != null ? String(row[2]) : "";
-    const yearRaw = row[4];
-    const year = typeof yearRaw === "number" ? Math.floor(yearRaw) : 0;
-
-    const myProposition = row[6] != null ? String(row[6]).trim().toLowerCase() : "";
-    const theirProposition = row[7] != null ? String(row[7]).trim().toLowerCase() : "";
-
-    const coin: RawCoin = {
-      issuer: cell0,
-      refKM: row[1] != null ? String(row[1]) : "",
-      typeId: extractTypeId(refN),
-      title: row[3] != null ? String(row[3]) : "",
-      year,
-      mintMark: row[5] != null ? String(row[5]) : "",
-      selected: currentSection === "demand" ? myProposition === "x" : theirProposition === "x",
-    };
-
-    if (currentSection === "demand") {
-      demanded.push(coin);
-    } else {
-      offered.push(coin);
-    }
-  }
-
-  return { title, demanded, offered };
+  return extractSections(rows);
 }
