@@ -3,11 +3,14 @@ import type {
   CoinWithPrices,
   ExchangeSide,
   EvaluationReport,
-  Verdict,
   Grade,
+  IssueQuery,
 } from "../types/index.js";
 import { GRADE_ORDER } from "../types/index.js";
-import { NumistaClient } from "../api/numista-client.js";
+import { NumistaClient, QuotaExceededError } from "../api/numista-client.js";
+import { selectIssue, refBaseFromRefKM } from "../api/issue-selector.js";
+import { fetchExchangeRates, convertToCurrency } from "../currency.js";
+import { compositeScore, verdictFromScore, DEFAULT_WEIGHTS } from "../fairness.js";
 
 const ISSUER_CODE_TO_ISO: Record<string, string> = {
   // Amériques
@@ -75,20 +78,23 @@ const ISSUER_CODE_TO_ISO: Record<string, string> = {
   "papouasie-nouvelle-guinee": "PGK",
 };
 
-const HISTORICAL_CURRENCY_MAP: Record<string, string> = {
-  "lire": "ITL", "lira": "ITL",
-  "franc": "FRF",
-  "mark": "DEM",
-  "peseta": "ESP",
-  "escudo": "PTE",
-  "schilling": "ATS",
-  "drachme": "GRD", "drachma": "GRD",
-  "florin": "NLG", "gulden": "NLG",
-  "cruzeiro": "BRZ",
-  "sol de oro": "PEH",
-  "austral": "ARA",
-  "peso moneda nacional": "ARM",
-};
+// Devises historiques, matchées par MOT ENTIER (jamais une sous-chaîne) et,
+// pour les noms ambigus (franc, lire, mark…), désambiguïsées par émetteur.
+// Évite « Franc CFA » → FRF, « Markka » → DEM, « Lira turca » → ITL.
+const HISTORICAL_RULES: { re: RegExp; issuers?: string[]; code: string }[] = [
+  { re: /\bpeseta\b/, issuers: ["espagne", "andorre"], code: "ESP" },
+  { re: /\bescudo\b/, code: "PTE" },
+  { re: /\bschilling\b/, code: "ATS" },
+  { re: /\bdrachm/, code: "GRD" },
+  { re: /\bflorin\b|\bgulden\b/, code: "NLG" },
+  { re: /\bcruzeiro\b/, code: "BRZ" },
+  { re: /\bsol de oro\b/, code: "PEH" },
+  { re: /\baustral\b/, code: "ARA" },
+  // Noms ambigus → garde par émetteur :
+  { re: /\bfranc\b/, issuers: ["france", "monaco"], code: "FRF" },
+  { re: /\blire\b|\blira\b/, issuers: ["italie", "saint-marin", "vatican"], code: "ITL" },
+  { re: /\bmark\b/, issuers: ["allemagne"], code: "DEM" },
+];
 
 function resolveCurrencyCode(
   issuerCode: string | undefined,
@@ -106,8 +112,8 @@ function resolveCurrencyCode(
 
   if (currencyName) {
     const lower = currencyName.toLowerCase();
-    for (const [key, code] of Object.entries(HISTORICAL_CURRENCY_MAP)) {
-      if (lower.includes(key)) return code;
+    for (const { re, issuers, code } of HISTORICAL_RULES) {
+      if (re.test(lower) && (!issuers || issuers.includes(issuerCode))) return code;
     }
   }
 
@@ -115,7 +121,7 @@ function resolveCurrencyCode(
 }
 
 function computeRarityScore(mintage: number | null): number | null {
-  if (mintage == null) return null;
+  if (mintage == null || mintage <= 0) return null; // 0 / inconnu ≠ « ultra-rare »
   if (mintage > 100_000_000) return 1;
   if (mintage > 10_000_000) return 3;
   if (mintage > 1_000_000) return 5;
@@ -127,22 +133,35 @@ function buildNumistaUrl(typeId: number): string {
   return `https://fr.numista.com/catalogue/pieces${typeId}.html`;
 }
 
-async function evaluateCoin(coin: RawCoin, client: NumistaClient, currency: string): Promise<CoinWithPrices> {
-  const empty: CoinWithPrices = {
+function emptyCoin(coin: RawCoin): CoinWithPrices {
+  return {
     raw: coin, issue: null,
     price: null, priceGrade: null, allPrices: new Array(7).fill(0),
     faceValue: null, faceValueText: null,
     currencyCode: null, mintage: null, rarityScore: null, numistaUrl: null,
+    confidence: "none", ambiguous: false, qualityGuess: "unknown", matchReason: "",
   };
+}
 
-  if (!coin.typeId) return empty;
+async function evaluateCoin(coin: RawCoin, client: NumistaClient, currency: string): Promise<CoinWithPrices> {
+  if (!coin.typeId) return emptyCoin(coin);
 
   const [typeInfo, issues] = await Promise.all([
     client.getType(coin.typeId),
     client.getIssues(coin.typeId),
   ]);
 
-  const bestIssue = client.findBestIssue(issues, coin.year, coin.mintMark);
+  const query: IssueQuery = {
+    year: coin.year,
+    strikeYear: coin.strikeYear,
+    mintMark: coin.mintMark,
+    mintIsGlyphOnly: coin.mintIsGlyphOnly,
+    refBase: refBaseFromRefKM(coin.refKM),
+    expectsProof: false,
+  };
+  const selection = selectIssue(issues, query);
+  const bestIssue = selection.issue;
+
   const numistaUrl = buildNumistaUrl(coin.typeId);
   const faceValue = typeInfo?.value?.numeric_value ?? null;
   const faceValueText = typeInfo?.value?.text ?? null;
@@ -182,37 +201,64 @@ async function evaluateCoin(coin: RawCoin, client: NumistaClient, currency: stri
     mintage,
     rarityScore: computeRarityScore(mintage),
     numistaUrl,
+    confidence: selection.confidence,
+    ambiguous: selection.ambiguous,
+    qualityGuess: selection.qualityGuess,
+    matchReason: selection.reason,
   };
 }
 
-function buildSide(coins: CoinWithPrices[]): ExchangeSide {
+export function buildSide(coins: CoinWithPrices[], rates: Record<string, number>, currency: string): ExchangeSide {
   let totalPrice = 0;
   let totalFaceValue = 0;
+  let totalConvertedNominal = 0;
+  let totalMintage = 0;
   let noPriceCount = 0;
-  const rarityScores: number[] = [];
 
   for (const c of coins) {
+    // On ne somme que les pièces INCLUSES (raw.selected), exactement comme l'Excel
+    // qui filtre tous ses totaux sur la colonne d'inclusion (SUMIF …,"✓",…). Sans ce
+    // filtre, terminal et Excel partiraient d'entrées différentes → verdicts divergents.
+    if (!c.raw.selected) continue;
     if (c.price != null) {
       totalPrice += c.price;
     } else {
       noPriceCount++;
     }
     totalFaceValue += c.faceValue ?? 0;
-    if (c.rarityScore != null) rarityScores.push(c.rarityScore);
+    totalConvertedNominal += convertToCurrency(c.faceValue, c.currencyCode, currency, rates) ?? 0;
+    totalMintage += c.mintage ?? 0;
   }
 
-  const avgRarity = rarityScores.length > 0
-    ? rarityScores.reduce((a, b) => a + b, 0) / rarityScores.length
-    : null;
-
-  return { coins, totalPrice, totalFaceValue, avgRarity, noPriceCount };
+  return { coins, totalPrice, totalFaceValue, totalConvertedNominal, totalMintage, noPriceCount };
 }
 
-function getVerdict(balancePercent: number): Verdict {
-  const abs = Math.abs(balancePercent);
-  if (abs <= 10) return "equitable";
-  if (abs <= 25) return "acceptable";
-  return "desequilibre";
+/**
+ * Évalue une liste de pièces. Une erreur réseau sur une pièce ne perd pas les
+ * précédentes (pièce vide à la place) ; un quota atteint (429) stoppe net.
+ */
+async function evaluateList(
+  coins: RawCoin[],
+  client: NumistaClient,
+  currency: string,
+  arrow: string,
+  onProgress?: (msg: string) => void,
+): Promise<{ results: CoinWithPrices[]; stopped: boolean }> {
+  const results: CoinWithPrices[] = [];
+  for (const coin of coins) {
+    onProgress?.(`  ${arrow} ${coin.title || coin.issuer}`);
+    try {
+      results.push(await evaluateCoin(coin, client, currency));
+    } catch (e) {
+      if (e instanceof QuotaExceededError) {
+        onProgress?.("  ⚠ Quota API atteint (429) — évaluation interrompue.");
+        return { results, stopped: true };
+      }
+      onProgress?.(`  ⚠ Échec pour ${coin.title || coin.issuer} — pièce ignorée.`);
+      results.push(emptyCoin(coin));
+    }
+  }
+  return { results, stopped: false };
 }
 
 export async function evaluate(
@@ -225,23 +271,38 @@ export async function evaluate(
 ): Promise<EvaluationReport> {
   onProgress?.(`Évaluation de ${demanded.length + offered.length} pièces...`);
 
-  const demandedCoins: CoinWithPrices[] = [];
-  for (const coin of demanded) {
-    onProgress?.(`  → ${coin.title || coin.issuer}`);
-    demandedCoins.push(await evaluateCoin(coin, client, currency));
-  }
+  const demandedRun = await evaluateList(demanded, client, currency, "→", onProgress);
+  const offeredRun = demandedRun.stopped
+    ? { results: offered.map(emptyCoin), stopped: true }
+    : await evaluateList(offered, client, currency, "←", onProgress);
+  const incomplete = demandedRun.stopped || offeredRun.stopped;
 
-  const offeredCoins: CoinWithPrices[] = [];
-  for (const coin of offered) {
-    onProgress?.(`  ← ${coin.title || coin.issuer}`);
-    offeredCoins.push(await evaluateCoin(coin, client, currency));
+  const rates = await fetchExchangeRates(currency.toLowerCase());
+  if (Object.keys(rates).length === 0) {
+    onProgress?.("  ⚠ Taux de change indisponibles — valeurs nominales non converties (indice nominal ignoré).");
   }
+  const demandedSide = buildSide(demandedRun.results, rates, currency);
+  const offeredSide = buildSide(offeredRun.results, rates, currency);
 
-  const demandedSide = buildSide(demandedCoins);
-  const offeredSide = buildSide(offeredCoins);
+  const missingCurrency = [...demandedRun.results, ...offeredRun.results]
+    .filter((c) => c.faceValue != null && c.currencyCode == null).length;
+  if (missingCurrency > 0) {
+    onProgress?.(`  ⚠ ${missingCurrency} pièce(s) sans devise reconnue — valeur nominale non convertie.`);
+  }
 
   const balance = demandedSide.totalPrice - offeredSide.totalPrice;
   const balancePercent = offeredSide.totalPrice > 0 ? (balance / offeredSide.totalPrice) * 100 : 0;
+
+  // Verdict = score pondéré sur prix + nominal + tirage (mêmes poids/seuils que l'Excel).
+  // La qualité (QA) n'existe qu'en saisie Excel → absente côté terminal, donc exclue ici.
+  const fairnessScore = compositeScore(
+    {
+      price: { received: demandedSide.totalPrice, given: offeredSide.totalPrice },
+      nominal: { received: demandedSide.totalConvertedNominal, given: offeredSide.totalConvertedNominal },
+      mintage: { received: demandedSide.totalMintage, given: offeredSide.totalMintage },
+    },
+    DEFAULT_WEIGHTS,
+  );
 
   return {
     title,
@@ -251,7 +312,9 @@ export async function evaluate(
     offered: offeredSide,
     balance,
     balancePercent,
-    verdict: getVerdict(balancePercent),
+    fairnessScore,
+    verdict: verdictFromScore(fairnessScore),
     apiCallsUsed: client.callCount,
+    incomplete,
   };
 }
