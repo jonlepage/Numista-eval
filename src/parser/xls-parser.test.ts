@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import path from "path";
-import { parseNumistaXls, isDataRow, extractSections, type CellMap } from "./xls-parser.js";
+import { existsSync } from "fs";
+import { parseNumistaXls, isDataRow, extractSections, decodeRK, type CellMap } from "./xls-parser.js";
 
 const EXAMPLE_FILE = path.resolve("doc/echange_etangua_jonlepage_1.example.xls");
 
-describe("parseNumistaXls", () => {
+// La fixture binaire n'est pas versionnée : on saute ce bloc plutôt que de le
+// faire échouer silencieusement à chaque exécution.
+describe.skipIf(!existsSync(EXAMPLE_FILE))("parseNumistaXls", () => {
   it("parse le titre de l'échange", () => {
     const result = parseNumistaXls(EXAMPLE_FILE);
     expect(result.title).toContain("JonLepage");
@@ -40,6 +43,23 @@ describe("parseNumistaXls", () => {
     const titles = result.demanded.map((c) => c.title);
     expect(titles).not.toContain("Désignation");
     expect(titles).not.toContain("TOTAL :");
+  });
+});
+
+describe("decodeRK — nombres compressés (fichiers ré-enregistrés par Excel)", () => {
+  it("décode un entier RK (année 1980)", () => {
+    // (1980 << 2) | 0x02 (drapeau entier) = 7922
+    expect(decodeRK(7922)).toBe(1980);
+  });
+
+  it("applique le drapeau /100", () => {
+    // (1980 << 2) | 0x02 | 0x01 = 7923 → 19.80
+    expect(decodeRK(7923)).toBeCloseTo(19.8, 5);
+  });
+
+  it("décode un flottant RK (30 bits de poids fort d'un double)", () => {
+    // 100.0 → double 0x4059000000000000 → high32 = 0x40590000
+    expect(decodeRK(0x40590000)).toBe(100);
   });
 });
 

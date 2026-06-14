@@ -1,8 +1,27 @@
 import CFB from "cfb";
 import type { ParsedExchange, RawCoin } from "../types/index.js";
+import { extractYear, extractMint, yearCellHasNumber } from "./year.js";
 
 export interface CellMap {
   [row: number]: { [col: number]: string | number };
+}
+
+/**
+ * Décode une valeur RK (nombre compressé BIFF8). Excel encode les entiers et
+ * petits flottants ainsi — fréquent dès qu'un fichier est ré-enregistré par Excel.
+ */
+export function decodeRK(rk: number): number {
+  const div100 = (rk & 0x01) !== 0;
+  let val: number;
+  if (rk & 0x02) {
+    val = rk >> 2; // entier signé 30 bits
+  } else {
+    // 30 bits de poids fort d'un double IEEE 754 (les 34 bits de poids faible = 0)
+    const tmp = Buffer.alloc(8);
+    tmp.writeUInt32LE((rk & 0xfffffffc) >>> 0, 4);
+    val = tmp.readDoubleLE(0);
+  }
+  return div100 ? val / 100 : val;
 }
 
 function parseWorkbookBIFF(buffer: Buffer): CellMap {
@@ -50,13 +69,34 @@ function parseWorkbookBIFF(buffer: Buffer): CellMap {
       }
     }
 
-    // NUMBER
+    // NUMBER (double IEEE 754 sur 8 octets)
     if (recType === 0x0203 && recLen >= 14) {
       const row = buffer.readUInt16LE(recStart);
       const col = buffer.readUInt16LE(recStart + 2);
       const val = buffer.readDoubleLE(recStart + 6);
       rows[row] ??= {};
       rows[row][col] = val;
+    }
+
+    // RK (nombre compressé — Excel l'utilise pour les entiers après ré-enregistrement)
+    if (recType === 0x027e && recLen >= 10) {
+      const row = buffer.readUInt16LE(recStart);
+      const col = buffer.readUInt16LE(recStart + 2);
+      const rk = buffer.readUInt32LE(recStart + 6);
+      rows[row] ??= {};
+      rows[row][col] = decodeRK(rk);
+    }
+
+    // MULRK (plusieurs RK adjacents sur une même ligne)
+    if (recType === 0x00bd && recLen >= 8) {
+      const row = buffer.readUInt16LE(recStart);
+      const colFirst = buffer.readUInt16LE(recStart + 2);
+      const count = Math.floor((recLen - 6) / 6);
+      rows[row] ??= {};
+      for (let i = 0; i < count; i++) {
+        const rk = buffer.readUInt32LE(recStart + 4 + i * 6 + 2);
+        rows[row][colFirst + i] = decodeRK(rk);
+      }
     }
 
     pos += 4 + recLen;
@@ -72,7 +112,7 @@ function extractTypeId(ref: string): number | null {
 }
 
 export function isDataRow(row: { [col: number]: string | number }): boolean {
-  if (typeof row[4] === "number") return true;
+  if (yearCellHasNumber(row[4])) return true;
   const ref = row[2] != null ? String(row[2]) : "";
   return extractTypeId(ref) !== null;
 }
@@ -80,8 +120,9 @@ export function isDataRow(row: { [col: number]: string | number }): boolean {
 function buildCoin(row: { [col: number]: string | number }, section: "demand" | "offer"): RawCoin {
   const cell0 = row[0] != null ? String(row[0]) : "";
   const refN = row[2] != null ? String(row[2]) : "";
-  const yearRaw = row[4];
-  const year = typeof yearRaw === "number" ? Math.floor(yearRaw) : 0;
+
+  const ye = extractYear(row[4]);
+  const mint = extractMint(row[5]);
 
   const myProposition = row[6] != null ? String(row[6]).trim().toLowerCase() : "";
   const theirProposition = row[7] != null ? String(row[7]).trim().toLowerCase() : "";
@@ -91,8 +132,12 @@ function buildCoin(row: { [col: number]: string | number }, section: "demand" | 
     refKM: row[1] != null ? String(row[1]) : "",
     typeId: extractTypeId(refN),
     title: row[3] != null ? String(row[3]) : "",
-    year,
-    mintMark: row[5] != null ? String(row[5]) : "",
+    year: ye.year,
+    yearRaw: ye.yearRaw,
+    strikeYear: ye.strikeYear,
+    mintMark: mint.mintMark,
+    rawMintMark: mint.rawMintMark,
+    mintIsGlyphOnly: mint.isGlyphOnly,
     selected: section === "demand" ? myProposition === "x" : theirProposition === "x",
   };
 }
