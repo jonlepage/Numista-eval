@@ -59,9 +59,75 @@ npx numista-eval "C:\Users\moi\Downloads\fichier_echange.xls" VOTRE_CLE_API MXN 
 - Les **taux de conversion** sont récupérés en direct avec des liens Google pour vérification
 - Le **verdict** en bas : ÉQUITABLE, ACCEPTABLE ou DÉSÉQUILIBRÉ (coloré)
 
+## Comment le verdict est calculé
+
+Le verdict ne repose **pas seulement sur le prix**. Le prix de marché n'est pas toujours disponible sur Numista, et il est parfois exagéré. L'outil combine donc **quatre indices** en un seul **score d'équité pondéré** :
+
+| Indice | Poids par défaut | Sens |
+|---|---|---|
+| Prix estimé | 3 | plus je reçois de valeur, mieux c'est |
+| Valeur nominale (convertie) | 1 | idem |
+| Tirage | 3 | **inversé** : moins de tirage = plus rare = en ma faveur |
+| Qualité (QA, /7) | 3 | meilleur grade reçu = mieux c'est |
+
+Chaque indice est comparé entre les deux côtés sous forme d'**écart en pourcentage**, puis pondéré. Seuls les indices réellement chiffrés comptent : si la valeur « donné » est vide ou nulle, l'indice est ignoré et le score est **renormalisé** sur ce qui reste.
+
+> Les poids sont **modifiables directement dans l'Excel** (colonne *Poids* du bilan) : le score et le verdict se recalculent en direct.
+
+### La formule (pour les matheux)
+
+Pour chaque indice *i* présent, on calcule l'écart signé en pourcentage entre les deux côtés :
+
+```
+gᵢ = (reçu_i − donné_i) / donné_i × 100
+```
+
+Le score d'équité **S** est la moyenne pondérée de ces écarts, renormalisée sur les seuls indices présents :
+
+```
+        Σ  wᵢ · sᵢ · gᵢ
+S  =  ──────────────────
+            Σ  wᵢ
+```
+
+- `wᵢ` = poids de l'indice (3, 1, 3, 3 par défaut)
+- `sᵢ` = signe de l'indice : **+1** pour prix, nominal et qualité ; **−1** pour le tirage (moins de tirage joue en faveur de celui qui reçoit)
+- les sommes ne portent que sur les indices dont le côté « donné » est un nombre **strictement positif**
+
+Convention de signe : **S > 0 → l'échange penche en ma faveur** (je reçois plus que je donne) ; **S < 0 → en ma défaveur**.
+
+Le verdict applique ensuite des seuils sur la **valeur absolue** du score :
+
+| Condition | Verdict |
+|---|---|
+| `abs(S) ≤ 8` | **ÉQUITABLE** |
+| `8 < abs(S) ≤ 20` | **ACCEPTABLE** |
+| `abs(S) > 20` | **DÉSÉQUILIBRÉ** |
+| aucun indice chiffrable | **INDÉTERMINÉ** |
+
+### Exemple chiffré
+
+Supposons un échange où la QA est laissée vide (l'indice qualité est donc exclu, le dénominateur tombe à `3 + 1 + 3 = 7`) :
+
+| Indice | Reçu | Donné | Écart `gᵢ` | Signe `sᵢ` |
+|---|---|---|---|---|
+| Prix | 0,96 | 0,28 | +248,5 % | +1 |
+| Nominal | 0,06 | 0,04 | +45,9 % | +1 |
+| Tirage | 2,44 G | 2,48 G | −1,4 % | −1 |
+
+```
+      3·(+248,5) + 1·(+45,9) + 3·(−1)·(−1,4)
+S  =  ───────────────────────────────────────  =  795,6 / 7  ≈  +113,7
+                    3 + 1 + 3
+```
+
+`abs(113,7) > 20` → **DÉSÉQUILIBRÉ** : je reçois environ 3,4× plus de valeur que je ne donne (estimé au grade le plus bas). Le terminal et l'Excel partagent **exactement la même formule** ([src/fairness.ts](src/fairness.ts)) — ils affichent donc toujours le même verdict.
+
+> **À propos de la ligne Tirage du bilan :** elle est affichée **du point de vue de la faveur** — recevoir *plus* de tirage (pièces plus communes) est défavorable, donc l'écart s'affiche en négatif/rouge. Ainsi « vert = en ma faveur » reste vrai pour **toutes** les lignes. C'est exactement le signe `−1` du tirage dans la formule ci-dessus : le verdict est identique.
+
 ## Limitations
 
-- **Les grades (QA) sont approximatifs.** Numista ne fournit pas d'information sur l'état de conservation des pièces dans les fichiers d'échange. L'outil utilise par défaut le grade le plus bas connu pour chaque pièce. Vous devez vérifier et ajuster manuellement la colonne QA selon l'état réel de chaque pièce — cela affecte directement le prix estimé.
+- **Les grades (QA) sont approximatifs.** Numista ne fournit pas l'état de conservation dans les fichiers d'échange, donc la **colonne QA est laissée vide**. Tant qu'elle l'est, le prix estimé retombe sur le **grade le plus bas connu**. Choisissez une QA (1–7) par pièce pour affiner le prix selon son état réel — cela affecte directement le verdict.
 - **Toutes les langues ne sont pas prises en charge.** Le rapport Excel est disponible en 11 langues (voir la liste ci-dessus). Si un code de langue non supporté est fourni, le rapport est généré en anglais par défaut.
 
 ## Conseils

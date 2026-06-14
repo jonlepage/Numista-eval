@@ -7,7 +7,6 @@ import { NumistaClient } from "./api/numista-client.js";
 import { evaluate } from "./evaluator/evaluator.js";
 import { printReport } from "./report/terminal-report.js";
 import { generateExcelReport } from "./report/excel-report.js";
-import { generateChartReport } from "./report/chart-report.js";
 import { t } from "./i18n.js";
 
 config({ path: path.resolve(process.cwd(), ".env") });
@@ -22,15 +21,17 @@ function resolveArgs(args: string[], lang: string): { filePath: string; apiKey: 
   }
 
   const isKey = (s: string) => /^[a-zA-Z0-9]{30,}$/.test(s);
+  const isCurrency = (s: string) => /^[a-zA-Z]{3}$/.test(s);
 
   let apiKey = process.env.NUMISTA_API_KEY ?? "";
   let currency = "CAD";
 
+  // La devise est acceptée quelle que soit la casse (eur, Eur, EUR) puis normalisée.
   if (second && isKey(second)) {
     apiKey = second;
-    if (third && /^[A-Z]{3}$/.test(third)) currency = third;
-  } else if (second && /^[A-Z]{3}$/.test(second)) {
-    currency = second;
+    if (third && isCurrency(third)) currency = third.toUpperCase();
+  } else if (second && isCurrency(second)) {
+    currency = second.toUpperCase();
   }
 
   if (!apiKey) {
@@ -45,7 +46,7 @@ function resolveArgs(args: string[], lang: string): { filePath: string; apiKey: 
 program
   .name("numista-eval")
   .description("Numista exchange evaluator")
-  .version("0.4.0")
+  .version("0.5.0")
   .argument("<file>", "XLS file exported from Numista")
   .argument("[apiKey]", "Numista API key (or via NUMISTA_API_KEY in .env)")
   .argument("[currency]", "ISO 4217 currency code (default: CAD)")
@@ -81,9 +82,7 @@ program
     if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
 
     const excelPath = await generateExcelReport(report, reportsDir, lang);
-    const chartPath = await generateChartReport(report, reportsDir, lang);
     console.log(`  ${dict.cli.reportExcel} : ${excelPath}`);
-    console.log(`  ${dict.cli.reportChart}     : ${chartPath}`);
     console.log("");
   });
 

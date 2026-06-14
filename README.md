@@ -61,9 +61,75 @@ npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang e
 - **Conversion rates** are fetched live and shown with Google verification links
 - **Verdict** at the bottom: FAIR, ACCEPTABLE or UNBALANCED (colored)
 
+## How the verdict is computed
+
+The verdict is **not based on price alone**. Market price isn't always available on Numista, and it is sometimes inflated. The tool therefore combines **four indicators** into a single **weighted fairness score**:
+
+| Indicator | Default weight | Meaning |
+|---|---|---|
+| Estimated price | 3 | the more value I receive, the better |
+| Face value (converted) | 1 | same |
+| Mintage | 3 | **inverted**: lower mintage = rarer = in my favour |
+| Quality (QA, /7) | 3 | a higher grade received is better |
+
+Each indicator is compared between the two sides as a **percentage gap**, then weighted. Only indicators that are actually quantified count: if the "given" value is empty or zero, the indicator is dropped and the score is **renormalized** over what remains.
+
+> The weights are **editable directly in the Excel** file (*Weight* column of the summary): the score and verdict recompute live.
+
+### The formula (for the math-inclined)
+
+For each present indicator *i*, compute the signed percentage gap between the two sides:
+
+```
+gᵢ = (received_i − given_i) / given_i × 100
+```
+
+The fairness score **S** is the weighted average of these gaps, renormalized over the present indicators only:
+
+```
+        Σ  wᵢ · sᵢ · gᵢ
+S  =  ──────────────────
+            Σ  wᵢ
+```
+
+- `wᵢ` = indicator weight (3, 1, 3, 3 by default)
+- `sᵢ` = indicator sign: **+1** for price, face value and quality; **−1** for mintage (lower mintage favours the receiver)
+- the sums run only over indicators whose "given" side is a **strictly positive** number
+
+Sign convention: **S > 0 → the swap leans in my favour** (I receive more than I give); **S < 0 → against me**.
+
+The verdict then applies thresholds on the **absolute value** of the score:
+
+| Condition | Verdict |
+|---|---|
+| `abs(S) ≤ 8` | **FAIR** |
+| `8 < abs(S) ≤ 20` | **ACCEPTABLE** |
+| `abs(S) > 20` | **UNBALANCED** |
+| no quantifiable indicator | **INDETERMINATE** |
+
+### Worked example
+
+Assume a swap where QA is left blank (so the quality indicator is excluded and the denominator drops to `3 + 1 + 3 = 7`):
+
+| Indicator | Received | Given | Gap `gᵢ` | Sign `sᵢ` |
+|---|---|---|---|---|
+| Price | 0.96 | 0.28 | +248.5 % | +1 |
+| Face value | 0.06 | 0.04 | +45.9 % | +1 |
+| Mintage | 2.44 G | 2.48 G | −1.4 % | −1 |
+
+```
+      3·(+248.5) + 1·(+45.9) + 3·(−1)·(−1.4)
+S  =  ───────────────────────────────────────  =  795.6 / 7  ≈  +113.7
+                    3 + 1 + 3
+```
+
+`abs(113.7) > 20` → **UNBALANCED**: I receive about 3.4× more value than I give (estimated at the lowest grade). The terminal and the Excel share **exactly the same formula** ([src/fairness.ts](src/fairness.ts)) — so they always display the same verdict.
+
+> **About the Mintage row in the summary:** it is shown from the **favourability angle** — receiving *more* mintage (more common coins) is unfavourable, so the gap shows as negative/red. This keeps "green = in my favour" true for **every** row. It is exactly the `−1` sign of mintage in the formula above: the verdict is identical.
+
 ## Limitations
 
-- **Grades (QA) are approximate.** Numista does not provide coin condition information in swap files. The tool defaults to the lowest known grade for each coin. You should manually verify and adjust the QA column based on the actual condition of each coin — this directly affects the estimated price.
+- **Grades (QA) are approximate.** Numista does not provide coin condition in swap files, so the **QA column is left blank**. While it stays blank, the estimated price falls back to the **lowest known grade**. Pick a QA value (1–7) per coin to refine the price based on its actual condition — this directly affects the verdict.
 - **Not all languages are fully supported.** The Excel report is available in 11 languages (see list above). If an unsupported language code is provided, the report falls back to English.
 
 ## Tips

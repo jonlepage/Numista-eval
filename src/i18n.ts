@@ -1,3 +1,14 @@
+export interface FlagStrings {
+  toVerify: string;       // libellé du compteur de bilan
+  incomplete: string;     // évaluation interrompue (quota)
+  uncertain: string;      // note : sélection d'émission incertaine
+  probableProof: string;  // note : probable épreuve
+  ambiguous: string;      // note : variante ambiguë
+  weight: string;         // en-tête colonne des poids du verdict
+  weightedScore: string;  // libellé du score pondéré
+  mintageNote: string;    // note expliquant le sens du tirage
+}
+
 export interface I18nStrings {
   sheetName: string;
   exchangeTitle: string;
@@ -31,7 +42,6 @@ export interface I18nStrings {
     gap: string;
     price: string;
     nominalConverted: string;
-    avgRarity: string;
     avgQuality: string;
   };
   verdict: {
@@ -39,7 +49,9 @@ export interface I18nStrings {
     fair: string;
     acceptable: string;
     unbalanced: string;
+    indeterminate: string;
   };
+  flags: FlagStrings;
   gradeLabels: string[];
   terminal: {
     iReceive: string;
@@ -49,7 +61,6 @@ export interface I18nStrings {
     received: string;
     given: string;
     balance: string;
-    avgRarity: string;
     noPrice: string;
     apiCalls: string;
     currency: string;
@@ -59,7 +70,6 @@ export interface I18nStrings {
     queryingApi: string;
     coinsFound: string;
     reportExcel: string;
-    reportChart: string;
     errorNoKey: string;
   };
 }
@@ -76,7 +86,32 @@ export function bcp47(lang: string): string {
   return LOCALE_TO_BCP47[lang as Locale] ?? "en-US";
 }
 
-const DICTIONARIES: Record<Locale, I18nStrings> = {
+// Les locales ne fournissent pas `verdict.indeterminate` ni `flags` : injectés par `t()`.
+type BaseStrings = Omit<I18nStrings, "verdict" | "flags"> & {
+  verdict: Omit<I18nStrings["verdict"], "indeterminate">;
+};
+
+const VERDICT_INDETERMINATE: Record<Locale, string> = {
+  fr: "INDÉTERMINÉ", en: "INDETERMINATE", de: "UNBESTIMMT", es: "INDETERMINADO",
+  pt: "INDETERMINADO", it: "INDETERMINATO", nl: "ONBEPAALD", el: "ΑΠΡΟΣΔΙΟΡΙΣΤΟ",
+  ru: "НЕ ОПРЕДЕЛЕНО", zh: "无法判定", ja: "判定不能",
+};
+
+const FLAGS: Record<Locale, FlagStrings> = {
+  fr: { toVerify: "Pièces à vérifier", incomplete: "Évaluation incomplète (quota) — résultats partiels", uncertain: "Émission incertaine", probableProof: "Probable Belle Épreuve", ambiguous: "Variante ambiguë", weight: "Poids", weightedScore: "Score pondéré", mintageNote: "Tirage : moins de tirage = plus rare = compté en faveur de celui qui reçoit." },
+  en: { toVerify: "Coins to verify", incomplete: "Incomplete evaluation (quota) — partial results", uncertain: "Uncertain issue", probableProof: "Probable proof", ambiguous: "Ambiguous variant", weight: "Weight", weightedScore: "Weighted score", mintageNote: "Mintage: lower mintage = rarer = counts in favour of the receiver." },
+  de: { toVerify: "Zu prüfende Münzen", incomplete: "Unvollständige Bewertung (Kontingent) — Teilergebnisse", uncertain: "Unsichere Ausgabe", probableProof: "Wahrscheinlich Polierte Platte", ambiguous: "Mehrdeutige Variante", weight: "Gewicht", weightedScore: "Gewichtete Punktzahl", mintageNote: "Auflage: geringere Auflage = seltener = zählt zugunsten des Empfängers." },
+  es: { toVerify: "Monedas a verificar", incomplete: "Evaluación incompleta (cuota) — resultados parciales", uncertain: "Emisión incierta", probableProof: "Probable prueba", ambiguous: "Variante ambigua", weight: "Peso", weightedScore: "Puntuación ponderada", mintageNote: "Tirada: menor tirada = más raro = cuenta a favor de quien recibe." },
+  pt: { toVerify: "Moedas a verificar", incomplete: "Avaliação incompleta (cota) — resultados parciais", uncertain: "Emissão incerta", probableProof: "Provável prova", ambiguous: "Variante ambígua", weight: "Peso", weightedScore: "Pontuação ponderada", mintageNote: "Tiragem: menor tiragem = mais raro = conta a favor de quem recebe." },
+  it: { toVerify: "Monete da verificare", incomplete: "Valutazione incompleta (quota) — risultati parziali", uncertain: "Emissione incerta", probableProof: "Probabile fondo specchio", ambiguous: "Variante ambigua", weight: "Peso", weightedScore: "Punteggio ponderato", mintageNote: "Tiratura: tiratura inferiore = più raro = conta a favore di chi riceve." },
+  nl: { toVerify: "Te controleren munten", incomplete: "Onvolledige evaluatie (quota) — gedeeltelijke resultaten", uncertain: "Onzekere uitgifte", probableProof: "Waarschijnlijk proof", ambiguous: "Dubbelzinnige variant", weight: "Gewicht", weightedScore: "Gewogen score", mintageNote: "Oplage: lagere oplage = zeldzamer = telt in het voordeel van de ontvanger." },
+  el: { toVerify: "Νομίσματα προς έλεγχο", incomplete: "Ατελής αξιολόγηση (όριο) — μερικά αποτελέσματα", uncertain: "Αβέβαιη έκδοση", probableProof: "Πιθανό proof", ambiguous: "Ασαφής παραλλαγή", weight: "Βάρος", weightedScore: "Σταθμισμένη βαθμολογία", mintageNote: "Κοπή: μικρότερη κοπή = σπανιότερο = μετράει υπέρ του παραλήπτη." },
+  ru: { toVerify: "Монеты для проверки", incomplete: "Неполная оценка (квота) — частичные результаты", uncertain: "Сомнительный выпуск", probableProof: "Вероятно пруф", ambiguous: "Неоднозначный вариант", weight: "Вес", weightedScore: "Взвешенная оценка", mintageNote: "Тираж: меньше тираж = реже = засчитывается в пользу получателя." },
+  zh: { toVerify: "待核对硬币", incomplete: "评估不完整（配额）——部分结果", uncertain: "不确定的版别", probableProof: "可能为精制币", ambiguous: "模糊的变体", weight: "权重", weightedScore: "加权得分", mintageNote: "铸造量：越低＝越稀有＝对接收方有利。" },
+  ja: { toVerify: "要確認の硬貨", incomplete: "評価未完了（クォータ）— 部分的な結果", uncertain: "不確実な発行", probableProof: "プルーフの可能性", ambiguous: "曖昧なバリエーション", weight: "重み", weightedScore: "加重スコア", mintageNote: "発行数：少ない＝希少＝受け取る側に有利。" },
+};
+
+const DICTIONARIES: Record<Locale, BaseStrings> = {
   fr: {
     sheetName: "Évaluation",
     exchangeTitle: "Échange n°{n} : {name1} – {name2}",
@@ -111,7 +146,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Écart %",
       price: "Prix",
       nominalConverted: "Nominal conv.",
-      avgRarity: "Rareté moy.",
       avgQuality: "QA moy.",
     },
     verdict: {
@@ -129,7 +163,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Reçu  :",
       given: "Donné :",
       balance: "Balance",
-      avgRarity: "Rareté moyenne :",
       noPrice: "{n} pièce(s) sans prix — marquées \"—\"",
       apiCalls: "API : {n} / 2000 appels",
       currency: "Devise",
@@ -139,7 +172,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Interrogation de l'API Numista...",
       coinsFound: "{demanded} pièces demandées, {offered} offertes",
       reportExcel: "Rapport Excel",
-      reportChart: "Graphique",
       errorNoKey: "Erreur : clé API manquante.",
     },
   },
@@ -178,7 +210,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Gap %",
       price: "Price",
       nominalConverted: "Nominal conv.",
-      avgRarity: "Avg. rarity",
       avgQuality: "Avg. QA",
     },
     verdict: {
@@ -196,7 +227,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Received:",
       given: "Given:",
       balance: "Balance",
-      avgRarity: "Avg. rarity:",
       noPrice: "{n} coin(s) without price — marked \"—\"",
       apiCalls: "API: {n} / 2000 calls",
       currency: "Currency",
@@ -206,7 +236,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Querying Numista API...",
       coinsFound: "{demanded} coins requested, {offered} offered",
       reportExcel: "Excel report",
-      reportChart: "Chart",
       errorNoKey: "Error: API key missing.",
     },
   },
@@ -245,7 +274,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Abw. %",
       price: "Preis",
       nominalConverted: "Nennw. umg.",
-      avgRarity: "Seltenh. Ø",
       avgQuality: "QA Ø",
     },
     verdict: {
@@ -263,7 +291,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Erhalten:",
       given: "Gegeben:",
       balance: "Saldo",
-      avgRarity: "Ø Seltenheit:",
       noPrice: "{n} Münze(n) ohne Preis — mit \"—\" markiert",
       apiCalls: "API: {n} / 2000 Aufrufe",
       currency: "Währung",
@@ -273,7 +300,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Numista-API wird abgefragt...",
       coinsFound: "{demanded} angeforderte Münzen, {offered} angebotene",
       reportExcel: "Excel-Bericht",
-      reportChart: "Diagramm",
       errorNoKey: "Fehler: API-Schlüssel fehlt.",
     },
   },
@@ -312,7 +338,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Desv. %",
       price: "Precio",
       nominalConverted: "Nominal conv.",
-      avgRarity: "Rareza prom.",
       avgQuality: "QA prom.",
     },
     verdict: {
@@ -330,7 +355,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Recibido:",
       given: "Dado:",
       balance: "Balance",
-      avgRarity: "Rareza prom.:",
       noPrice: "{n} moneda(s) sin precio — marcadas \"—\"",
       apiCalls: "API: {n} / 2000 llamadas",
       currency: "Moneda",
@@ -340,7 +364,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Consultando API Numista...",
       coinsFound: "{demanded} monedas solicitadas, {offered} ofrecidas",
       reportExcel: "Informe Excel",
-      reportChart: "Gráfico",
       errorNoKey: "Error: falta la clave API.",
     },
   },
@@ -379,7 +402,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Desv. %",
       price: "Preço",
       nominalConverted: "Nominal conv.",
-      avgRarity: "Raridade méd.",
       avgQuality: "QA méd.",
     },
     verdict: {
@@ -397,7 +419,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Recebido:",
       given: "Dado:",
       balance: "Saldo",
-      avgRarity: "Raridade méd.:",
       noPrice: "{n} moeda(s) sem preço — marcadas \"—\"",
       apiCalls: "API: {n} / 2000 chamadas",
       currency: "Moeda",
@@ -407,7 +428,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Consultando API Numista...",
       coinsFound: "{demanded} moedas solicitadas, {offered} oferecidas",
       reportExcel: "Relatório Excel",
-      reportChart: "Gráfico",
       errorNoKey: "Erro: chave API ausente.",
     },
   },
@@ -446,7 +466,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Scarto %",
       price: "Prezzo",
       nominalConverted: "Nominale conv.",
-      avgRarity: "Rarità med.",
       avgQuality: "QA med.",
     },
     verdict: {
@@ -464,7 +483,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Ricevuto:",
       given: "Dato:",
       balance: "Saldo",
-      avgRarity: "Rarità med.:",
       noPrice: "{n} moneta/e senza prezzo — contrassegnate \"—\"",
       apiCalls: "API: {n} / 2000 chiamate",
       currency: "Valuta",
@@ -474,7 +492,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Interrogazione API Numista...",
       coinsFound: "{demanded} monete richieste, {offered} offerte",
       reportExcel: "Rapporto Excel",
-      reportChart: "Grafico",
       errorNoKey: "Errore: chiave API mancante.",
     },
   },
@@ -513,7 +530,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Afw. %",
       price: "Prijs",
       nominalConverted: "Nom. conv.",
-      avgRarity: "Gem. zeldzaamh.",
       avgQuality: "Gem. QA",
     },
     verdict: {
@@ -531,7 +547,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Ontvangen:",
       given: "Gegeven:",
       balance: "Saldo",
-      avgRarity: "Gem. zeldzaamh.:",
       noPrice: "{n} munt(en) zonder prijs — gemarkeerd \"—\"",
       apiCalls: "API: {n} / 2000 oproepen",
       currency: "Valuta",
@@ -541,7 +556,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Numista-API wordt bevraagd...",
       coinsFound: "{demanded} gevraagde munten, {offered} aangeboden",
       reportExcel: "Excel-rapport",
-      reportChart: "Grafiek",
       errorNoKey: "Fout: API-sleutel ontbreekt.",
     },
   },
@@ -580,7 +594,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Απόκλ. %",
       price: "Τιμή",
       nominalConverted: "Ον.αξ. μετ.",
-      avgRarity: "Μέση σπαν.",
       avgQuality: "Μέσο QA",
     },
     verdict: {
@@ -598,7 +611,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Λήψη:",
       given: "Δόση:",
       balance: "Υπόλοιπο",
-      avgRarity: "Μέση σπανιότ.:",
       noPrice: "{n} νόμισμα(τα) χωρίς τιμή — σημειωμένα \"—\"",
       apiCalls: "API: {n} / 2000 κλήσεις",
       currency: "Νόμισμα",
@@ -608,7 +620,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Ερώτηση API Numista...",
       coinsFound: "{demanded} ζητούμενα νομίσματα, {offered} προσφερόμενα",
       reportExcel: "Αναφορά Excel",
-      reportChart: "Γράφημα",
       errorNoKey: "Σφάλμα: λείπει το κλειδί API.",
     },
   },
@@ -647,7 +658,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "Откл. %",
       price: "Цена",
       nominalConverted: "Номин. конв.",
-      avgRarity: "Ср. редкость",
       avgQuality: "Ср. QA",
     },
     verdict: {
@@ -665,7 +675,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "Получено:",
       given: "Отдано:",
       balance: "Баланс",
-      avgRarity: "Ср. редкость:",
       noPrice: "{n} монет(а) без цены — отмечены \"—\"",
       apiCalls: "API: {n} / 2000 вызовов",
       currency: "Валюта",
@@ -675,7 +684,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Запрос к API Numista...",
       coinsFound: "{demanded} запрошенных монет, {offered} предложенных",
       reportExcel: "Отчёт Excel",
-      reportChart: "График",
       errorNoKey: "Ошибка: отсутствует ключ API.",
     },
   },
@@ -714,7 +722,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "偏差 %",
       price: "价格",
       nominalConverted: "面值换算",
-      avgRarity: "平均稀有度",
       avgQuality: "平均品相",
     },
     verdict: {
@@ -732,7 +739,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "收到：",
       given: "付出：",
       balance: "余额",
-      avgRarity: "平均稀有度：",
       noPrice: "{n} 枚硬币无价格——标记为\"—\"",
       apiCalls: "API：{n} / 2000 次调用",
       currency: "货币",
@@ -742,7 +748,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "正在查询Numista API...",
       coinsFound: "{demanded} 枚请求硬币，{offered} 枚提供",
       reportExcel: "Excel报告",
-      reportChart: "图表",
       errorNoKey: "错误：缺少API密钥。",
     },
   },
@@ -781,7 +786,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       gap: "偏差 %",
       price: "価格",
       nominalConverted: "額面換算",
-      avgRarity: "平均希少度",
       avgQuality: "平均品相",
     },
     verdict: {
@@ -799,7 +803,6 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       received: "受取：",
       given: "提供：",
       balance: "残高",
-      avgRarity: "平均希少度：",
       noPrice: "{n} 枚の硬貨に価格なし——\"—\"と表示",
       apiCalls: "API：{n} / 2000 呼び出し",
       currency: "通貨",
@@ -809,12 +812,17 @@ const DICTIONARIES: Record<Locale, I18nStrings> = {
       queryingApi: "Numista APIに問い合わせ中...",
       coinsFound: "リクエスト {demanded} 枚、提供 {offered} 枚",
       reportExcel: "Excelレポート",
-      reportChart: "チャート",
       errorNoKey: "エラー：APIキーがありません。",
     },
   },
 };
 
 export function t(lang: string): I18nStrings {
-  return DICTIONARIES[lang as Locale] ?? DICTIONARIES.en;
+  const loc: Locale = (lang as Locale) in DICTIONARIES ? (lang as Locale) : "en";
+  const base = DICTIONARIES[loc];
+  return {
+    ...base,
+    verdict: { ...base.verdict, indeterminate: VERDICT_INDETERMINATE[loc] },
+    flags: FLAGS[loc],
+  };
 }
