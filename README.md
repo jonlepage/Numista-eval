@@ -8,6 +8,8 @@ Evaluate the fairness of a coin swap on [Numista](https://www.numista.com).
 
 You export a swap file from Numista, run the tool, and get an **Excel report** with estimated prices, rarity scores and a fairness verdict. The report is fully editable — adjust grades, exclude coins, share it with your swap partner.
 
+[![Screenshot of the Excel report](./pre1.jpg)](./pre1.jpg)
+
 ## Setup
 
 1. Install [Node.js](https://nodejs.org) (version 20+)
@@ -65,20 +67,20 @@ npx numista-eval "C:\Users\me\Downloads\swap_file.xls" YOUR_API_KEY MXN --lang e
 
 The verdict is **not based on price alone**. Market price isn't always available on Numista, and it is sometimes inflated. The tool therefore combines **four indicators** into a single **weighted fairness score**:
 
-| Indicator | Default weight | Meaning |
-|---|---|---|
-| Estimated price | 3 | the more value I receive, the better |
-| Face value (converted) | 1 | same |
-| Mintage | 3 | **inverted**: lower mintage = rarer = in my favour |
-| Quality (QA, /7) | 3 | a higher grade received is better |
+| Indicator              | Default weight | Meaning                                            |
+| ---------------------- | -------------- | -------------------------------------------------- |
+| Estimated price        | 3              | the more value I receive, the better               |
+| Face value (converted) | 1              | same                                               |
+| Mintage                | 3              | **inverted**: lower mintage = rarer = in my favour |
+| Quality (QA, /7)       | 3              | a higher grade received is better                  |
 
 Each indicator is compared between the two sides as a **percentage gap**, then weighted. Only indicators that are actually quantified count: if the "given" value is empty or zero, the indicator is dropped and the score is **renormalized** over what remains.
 
-> The weights are **editable directly in the Excel** file (*Weight* column of the summary): the score and verdict recompute live.
+> The weights are **editable directly in the Excel** file (_Weight_ column of the summary): the score and verdict recompute live.
 
 ### The formula (for the math-inclined)
 
-For each present indicator *i*, compute the signed percentage gap between the two sides:
+For each present indicator _i_, compute the signed percentage gap between the two sides:
 
 ```
 gᵢ = (received_i − given_i) / given_i × 100
@@ -100,22 +102,22 @@ Sign convention: **S > 0 → the swap leans in my favour** (I receive more than 
 
 The verdict then applies thresholds on the **absolute value** of the score:
 
-| Condition | Verdict |
-|---|---|
-| `abs(S) ≤ 8` | **FAIR** |
-| `8 < abs(S) ≤ 20` | **ACCEPTABLE** |
-| `abs(S) > 20` | **UNBALANCED** |
+| Condition                 | Verdict           |
+| ------------------------- | ----------------- |
+| `abs(S) ≤ 8`              | **FAIR**          |
+| `8 < abs(S) ≤ 20`         | **ACCEPTABLE**    |
+| `abs(S) > 20`             | **UNBALANCED**    |
 | no quantifiable indicator | **INDETERMINATE** |
 
 ### Worked example
 
 Assume a swap where QA is left blank (so the quality indicator is excluded and the denominator drops to `3 + 1 + 3 = 7`):
 
-| Indicator | Received | Given | Gap `gᵢ` | Sign `sᵢ` |
-|---|---|---|---|---|
-| Price | 0.96 | 0.28 | +248.5 % | +1 |
-| Face value | 0.06 | 0.04 | +45.9 % | +1 |
-| Mintage | 2.44 G | 2.48 G | −1.4 % | −1 |
+| Indicator  | Received | Given  | Gap `gᵢ` | Sign `sᵢ` |
+| ---------- | -------- | ------ | -------- | --------- |
+| Price      | 0.96     | 0.28   | +248.5 % | +1        |
+| Face value | 0.06     | 0.04   | +45.9 %  | +1        |
+| Mintage    | 2.44 G   | 2.48 G | −1.4 %   | −1        |
 
 ```
       3·(+248.5) + 1·(+45.9) + 3·(−1)·(−1.4)
@@ -125,7 +127,7 @@ S  =  ────────────────────────�
 
 `abs(113.7) > 20` → **UNBALANCED**: I receive about 3.4× more value than I give (estimated at the lowest grade). The terminal and the Excel share **exactly the same formula** ([src/fairness.ts](src/fairness.ts)) — so they always display the same verdict.
 
-> **About the Mintage row in the summary:** it is shown from the **favourability angle** — receiving *more* mintage (more common coins) is unfavourable, so the gap shows as negative/red. This keeps "green = in my favour" true for **every** row. It is exactly the `−1` sign of mintage in the formula above: the verdict is identical.
+> **About the Mintage row in the summary:** it is shown from the **favourability angle** — receiving _more_ mintage (more common coins) is unfavourable, so the gap shows as negative/red. This keeps "green = in my favour" true for **every** row. It is exactly the `−1` sign of mintage in the formula above: the verdict is identical.
 
 ## Limitations
 

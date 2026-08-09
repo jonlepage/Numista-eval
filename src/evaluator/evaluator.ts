@@ -79,11 +79,13 @@ const ISSUER_CODE_TO_ISO: Record<string, string> = {
 };
 
 // Devises historiques, matchées par MOT ENTIER (jamais une sous-chaîne) et,
-// pour les noms ambigus (franc, lire, mark…), désambiguïsées par émetteur.
-// Évite « Franc CFA » → FRF, « Markka » → DEM, « Lira turca » → ITL.
+// pour les noms ambigus (franc, lire, mark, escudo…), désambiguïsées par émetteur.
+// Évite « Franc CFA » → FRF, « Markka » → DEM, « Lira turca » → ITL, « Escudo chilien » → PTE.
 const HISTORICAL_RULES: { re: RegExp; issuers?: string[]; code: string }[] = [
   { re: /\bpeseta\b/, issuers: ["espagne", "andorre"], code: "ESP" },
-  { re: /\bescudo\b/, code: "PTE" },
+  // L'escudo portugais (PTE) a un taux euro-legacy fixe ; l'escudo chilien et les
+  // escudos coloniaux n'en ont pas → garde au seul Portugal, sinon case vide.
+  { re: /\bescudo\b/, issuers: ["portugal"], code: "PTE" },
   { re: /\bschilling\b/, code: "ATS" },
   { re: /\bdrachm/, code: "GRD" },
   { re: /\bflorin\b|\bgulden\b/, code: "NLG" },
